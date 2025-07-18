@@ -18,45 +18,29 @@ class DataTransform:
         self.augmentation = augmentation
         self.class_label = class_label
         
-        # 클래스별 augmentation 파라미터
+        # 통합된 augmentation 파라미터 (클래스별 구분 제거)
         self.aug_params = {
-            'acc4-brain': {
-                'flip_prop': 0.3, 'rotate_prop': 0.3, 'rotate_range': (2, 5),
-                'scale_prop': 0.3, 'scale_range': (0.95, 1.05),
-                'shift_prop': 0.3, 'shift_range': (2, 5)
-            },
-            'acc4-knee': {
-                'flip_prop': 0.6, 'rotate_prop': 0.5, 'rotate_range': (5, 12),
-                'scale_prop': 0.5, 'scale_range': (0.9, 1.1),
-                'shift_prop': 0.5, 'shift_range': (5, 12)
-            },
-            'acc8-brain': {
-                'flip_prop': 0.2, 'rotate_prop': 0.2, 'rotate_range': (1, 3),
-                'scale_prop': 0.2, 'scale_range': (0.98, 1.02),
-                'shift_prop': 0.2, 'shift_range': (1, 3)
-            },
-            'acc8-knee': {
-                'flip_prop': 0.4, 'rotate_prop': 0.3, 'rotate_range': (3, 8),
-                'scale_prop': 0.3, 'scale_range': (0.95, 1.05),
-                'shift_prop': 0.3, 'shift_range': (3, 8)
-            }
+            'flip_prop': 0.5, 
+            'rotate_prop': 0.4, 
+            'rotate_range': (3, 8),
+            'scale_prop': 0.4, 
+            'scale_range': (0.95, 1.05),
+            'shift_prop': 0.4, 
+            'shift_range': (3, 8)
         }
     
     def __call__(self, mask, input, target, attrs, fname, slice):
         
         if self.augmentation:
-            kwargs = self.aug_params.get(self.class_label, {}) if self.class_label else {}
-            input, target = spatial_augmentation(kspace=input * mask, image=target, **kwargs)
+            input, target = spatial_augmentation(kspace=input, image=target, **self.aug_params)
 
-        # Prepare target and maximum
         if self.isforward:
             target = maximum = -1
         else:
-            target = to_tensor(target)
-            maximum = attrs[self.max_key]
+            target = to_tensor(target)  # 원본 스케일 유지
+            maximum = attrs[self.max_key]  # 원본 maximum 유지
     
-        kspace = to_tensor(input)
+        kspace = to_tensor(input * mask)
         kspace = torch.stack((kspace.real, kspace.imag), dim=-1)
         mask = torch.from_numpy(mask.reshape(1, 1, kspace.shape[-2], 1).astype(np.float32)).byte()
         return mask, kspace.float(), target, maximum, fname, slice
-
