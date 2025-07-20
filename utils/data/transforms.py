@@ -12,13 +12,11 @@ def to_tensor(data):
         return torch.tensor(data)
 
 class DataTransform:
-    def __init__(self, isforward, max_key, augmentation=False, class_label=None):
+    def __init__(self, isforward, max_key, augmentation=False):
         self.isforward = isforward
         self.max_key = max_key
         self.augmentation = augmentation
-        self.class_label = class_label
         
-        # 통합된 augmentation 파라미터 (클래스별 구분 제거)
         self.aug_params = {
             'flip_prop': 0.5, 
             'rotate_prop': 0.4, 
@@ -37,10 +35,10 @@ class DataTransform:
         if self.isforward:
             target = maximum = -1
         else:
-            target = to_tensor(target)  # 원본 스케일 유지
-            maximum = attrs[self.max_key]  # 원본 maximum 유지
+            target = to_tensor(target)
+            maximum = attrs[self.max_key]
     
         kspace = to_tensor(input * mask)
         kspace = torch.stack((kspace.real, kspace.imag), dim=-1)
         mask = torch.from_numpy(mask.reshape(1, 1, kspace.shape[-2], 1).astype(np.float32)).byte()
-        return mask, kspace.float(), target, maximum, fname, slice
+        return mask, kspace, target, maximum, fname, slice

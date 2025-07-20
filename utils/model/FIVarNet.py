@@ -8,20 +8,20 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.utils.checkpoint import checkpoint
 
-from layers.Feature import FeatureImage, FeatureEncoder, FeatureDecoder
-from layers.AttentionPE import AttentionPE
-from layers.NormStats import NormStats
-from layers.VarNetBlock import VarNetBlock
-from layers.AttentionFeatureVarNetBlock import AttentionFeatureVarNetBlock
+from utils.model.layers.Feature import FeatureImage, FeatureEncoder, FeatureDecoder
+from utils.model.layers.AttentionPE import AttentionPE
+from utils.model.layers.NormStats import NormStats
+from utils.model.layers.VarNetBlock import VarNetBlock
+from utils.model.layers.AttentionFeatureVarNetBlock import AttentionFeatureVarNetBlock
 
-from utils.fftc import fft2c, ifft2c
-from utils.math import complex_abs
-from utils.coil_combine import rss, sens_expand, sens_reduce
-from utils.transforms import chan_complex_to_last_dim, complex_to_chan_dim
-from utils.transforms import center_crop
+from utils.model.utils.fftc import fft2c, ifft2c
+from utils.model.utils.math import complex_abs
+from utils.model.utils.coil_combine import rss, sens_expand, sens_reduce
+from utils.model.utils.transforms import chan_complex_to_last_dim, complex_to_chan_dim
+from utils.model.utils.transforms import center_crop
 
-from SensitivityModel import SensitivityModel
-from Unet import Unet2d, NormUnet
+from utils.model.SensitivityModel import SensitivityModel
+from utils.model.Unet import Unet2d, NormUnet
 
 
 class FIVarNet(nn.Module):
@@ -77,6 +77,7 @@ class FIVarNet(nn.Module):
         self.decode_norm = nn.InstanceNorm2d(chans)
         self.feature_cascades = nn.ModuleList(feature_cascades)
         self.norm_fn = NormStats()
+        self.output_scale = nn.Parameter(torch.tensor(1.0, dtype=torch.float64))
 
     def _decode_output(self, feature_image: FeatureImage) -> Tensor:
         image = self.decoder(
@@ -130,8 +131,6 @@ class FIVarNet(nn.Module):
             else:
                 return fn(*args, **kwargs)
 
-        masked_kspace = masked_kspace * self.kspace_mult_factor
-
         feature_image = apply_ckpt(
             self._encode_input,
             masked_kspace,
@@ -169,5 +168,7 @@ class FIVarNet(nn.Module):
         )  
         
         result = rss(complex_abs(ifft2c(kspace_pred)), dim=1)
-        return center_crop(result, (384, 384)).contiguous()
+        cropped_result = center_crop(result, (384, 384)).contiguous()
+
+        return cropped_result
 

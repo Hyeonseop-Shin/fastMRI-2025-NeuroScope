@@ -2,6 +2,7 @@ import os
 import h5py
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 class MRIClassifier:
     """MRI data classifier for anatomy and acceleration"""
@@ -16,7 +17,7 @@ class MRIClassifier:
             kspace = f['kspace'][:]
             mask = f['mask'][:]
         
-        # Anatomy classification
+        # Anatomy classification (brain/knee)
         width = kspace.shape[-1]
         anatomy = 'brain' if self.brain_width_range[0] <= width <= self.brain_width_range[1] else 'knee'
         
@@ -30,7 +31,7 @@ class MRIClassifier:
             'class_label': f"{acceleration}-{anatomy}"
         }
 
-def classify_and_index(input_folder, output_base, brain_width_range=(390, 400), mask_threshold=95, print_freq=50):
+def classify_and_index(input_folder, output_base, brain_width_range=(390, 400), mask_threshold=95, print_freq=10):
     """
     Classify MRI files and create index files for each class
     
@@ -45,9 +46,7 @@ def classify_and_index(input_folder, output_base, brain_width_range=(390, 400), 
     files = [f for f in os.listdir(input_folder) if f.endswith('.h5')]
     
     print(f"Classifying {len(files)} files...")
-    for idx, fname in enumerate(sorted(files)):
-        if idx % print_freq == 0:
-            print(f"Progress: {idx}/{len(files)}")
+    for fname in tqdm(sorted(files)):
         
         path = os.path.join(input_folder, fname)
         classification = classifier.classify(path)
@@ -91,7 +90,7 @@ def classify_and_index(input_folder, output_base, brain_width_range=(390, 400), 
     
     return class_groups, index_files
 
-# Backward compatibility (기존 함수명 유지)
+# Backward compatibility
 def classify_and_split(input_folder, output_base, brain_width_range=(390, 400)):
     """Backward compatibility wrapper"""
     return classify_and_index(input_folder, output_base, brain_width_range)

@@ -123,9 +123,9 @@ def spatial_augmentation(
         kspace: np.ndarray, 
         image: np.ndarray,
         flip_prop=0.5,
-        rotate_prop=0.5, rotate_range=(5, 10),
-        scale_prop=0.5, scale_range=(0.9, 1.1),
-        shift_prop=0.5, shift_range=(5, 10),
+        rotate_prop=0.4, rotate_range=(3, 8),
+        scale_prop=0.4, scale_range=(0.95, 1.05),
+        shift_prop=0.4, shift_range=(3, 8),
     ) -> Tuple[np.ndarray, np.ndarray]:
 
     if np.random.random() < rotate_prop:

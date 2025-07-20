@@ -3,6 +3,7 @@ from utils.data.transforms import DataTransform
 from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 import numpy as np
+from tqdm import tqdm
 
 class SliceData(Dataset):
     """Unified dataset class - handles both standard and indexed loading"""
@@ -42,8 +43,8 @@ class SliceData(Dataset):
     def __len__(self):
         return len(self.examples)
     
-    def __getitem__(self, i):
-        fname, slice_ind = self.examples[i]
+    def __getitem__(self, index):
+        fname, slice_ind = self.examples[index]
         
         # Load kspace
         kspace_path = self.kspace_root / fname
@@ -63,18 +64,18 @@ class SliceData(Dataset):
         
         return self.transform(mask, input_data, target, attrs, fname, slice_ind)
 
-def create_data_loaders(data_path, args, shuffle=False, isforward=False, augmentation=False):
+def create_data_loaders(data_path, args, index_file=None, shuffle=False, isforward=False, augmentation=False):
     """Create standard data loader"""
     max_key_ = args.max_key if not isforward else -1
     target_key_ = args.target_key if not isforward else -1
     
-    # For standard loading, assume data_path contains kspace/ and image/ folders
     kspace_root = Path(data_path) / "kspace"
     image_root = Path(data_path) / "image" if not isforward else None
 
     dataset = SliceData(
         kspace_root=kspace_root,
         image_root=image_root,
+        index_file=index_file,
         transform=DataTransform(isforward, max_key_, augmentation=augmentation),
         input_key=args.input_key,
         target_key=target_key_,
@@ -83,14 +84,14 @@ def create_data_loaders(data_path, args, shuffle=False, isforward=False, augment
 
     return DataLoader(dataset=dataset, batch_size=args.batch_size, shuffle=shuffle)
 
-def create_indexed_loader(kspace_root, image_root, index_file, args, shuffle=False, isforward=False, augmentation=False):
+def create_indexed_loader(data_path, args, index_file=None, shuffle=False, isforward=False, augmentation=False):
     """Create index-based data loader for MoE with class-specific augmentation"""
     max_key_ = args.max_key if not isforward else -1
     target_key_ = args.target_key if not isforward else -1
-    
-    # 인덱스 파일명에서 클래스 추출
-    class_label = Path(index_file).stem  # 예: acc4-brain.txt -> acc4-brain
 
+    kspace_root = Path(data_path) / "kspace"
+    image_root = Path(data_path) / "image" if not isforward else None
+    
     dataset = SliceData(
         kspace_root=kspace_root,
         image_root=image_root,
@@ -98,8 +99,7 @@ def create_indexed_loader(kspace_root, image_root, index_file, args, shuffle=Fal
         transform=DataTransform(
             isforward, 
             max_key_, 
-            augmentation=augmentation,
-            class_label=class_label  # 클래스 정보 전달
+            augmentation=augmentation
         ),
         input_key=args.input_key,
         target_key=target_key_,

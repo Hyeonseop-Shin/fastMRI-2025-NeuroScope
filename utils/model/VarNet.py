@@ -8,12 +8,12 @@ LICENSE file in the root directory of this source tree.
 import math
 from typing import List, Tuple
 
-import fastmri
+from . import fastmri
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from Unet import Unet
-from utils.transforms import center_crop, batched_mask_center
+from utils.model.Unet import Unet
+from utils.model.utils.transforms import center_crop, batched_mask_center
 
 
 class NormUnet(nn.Module):
@@ -233,7 +233,7 @@ class VarNet(nn.Module):
             [VarNetBlock(NormUnet(chans, pools)) for _ in range(num_cascades)]
         )
 
-    def forward(self, masked_kspace: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    def forward(self, masked_kspace: torch.Tensor, mask: torch.Tensor, is_training: bool) -> torch.Tensor:
         sens_maps = self.sens_net(masked_kspace, mask)
         kspace_pred = masked_kspace.clone()
 
