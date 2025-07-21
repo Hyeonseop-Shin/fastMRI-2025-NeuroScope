@@ -13,8 +13,7 @@ from torch import Tensor
 from torch import optim
 import torch.nn as nn
 
-# from utils.data.load_data import create_data_loaders
-from utils.data.load2 import create_data_loaders
+from utils.data.load_data import create_data_loaders
 from utils.common.utils import ssim_loss
 from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss
 from utils.model.VarNet import VarNet
