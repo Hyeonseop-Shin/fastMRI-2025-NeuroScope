@@ -13,7 +13,8 @@ from torch import Tensor
 from torch import optim
 import torch.nn as nn
 
-from utils.data.load_data import create_data_loaders
+# from utils.data.load_data import create_data_loaders
+from utils.data.load2 import create_data_loaders
 from utils.common.utils import ssim_loss
 from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss
 from utils.model.VarNet import VarNet
@@ -184,7 +185,7 @@ class FastMRI():
         return metric_loss, num_subjects, reconstructions, targets, time.perf_counter() - start
     
 
-    def train_epoch(self, epoch, train_loader, optimizer, criterion, scaler):
+    def train_epoch(self, epoch, train_loader, optimizer, criterion, scaler, fold):
         self.model.train()
         start_epoch = start_iter = time.perf_counter()
         len_loader = len(train_loader)
@@ -213,13 +214,13 @@ class FastMRI():
                 optimizer.step()
                 optimizer.zero_grad()
 
-            if iter % self.args.report_interval == 0:
-                print(
-                    f'Epoch = [{epoch:3d}/{self.args.num_epochs:3d}]\t'
-                    f'Iter = [{iter:4d}/{len_loader:4d}]\t'
-                    f'Loss = {loss.item() * accumulation_step:.4g}\t'
-                    f'Time = {time.perf_counter() - start_iter:.4f}s',
-                )
+            if (iter + 1) % self.args.report_interval == 0:
+                log_template = f'Epoch = [{epoch + 1:3d}/{self.args.num_epochs:3d}]  ' + \
+                    (f'Fold = [{fold + 1:2d}/{self.args.num_folds:2d}]  ' if self.args.k_fold else '') + \
+                    f'Iter = [{iter + 1:4d}/{len_loader:4d}]  ' + \
+                    f'Loss = {loss.item() * accumulation_step:.5f}  ' + \
+                    f'Time = {time.perf_counter() - start_iter:.4f}s'
+                print(log_template)
                 start_iter = time.perf_counter()
 
         total_loss = total_loss / len_loader
@@ -228,20 +229,6 @@ class FastMRI():
 
     def train_single_class(self, class_label, index_file=None, exp_dir="./checkpoint", val_loss_dir="./"):
         print(f"\n=============== Training for class: {class_label} ===============")
-
-        train_loader = create_data_loaders(
-            data_path=self.args.data_path_train,
-            args=self.args,
-            index_file=index_file,
-            shuffle=True,
-            augmentation=self.args.data_augmentation
-        )
-        val_loader = create_data_loaders(
-            data_path=self.args.data_path_val,
-            args=self.args,
-            shuffle=False,
-            augmentation=False
-        )
 
         best_val_loss = 1.
         start_epoch = 0
@@ -253,33 +240,51 @@ class FastMRI():
         scaler = self._select_scaler()
 
         model_name = f"{self.args.net_name}_{class_label}"
+        fold_num = self.args.num_folds if self.args.k_fold else 1
         for epoch in range(start_epoch, self.args.num_epochs):
             print(f'Epoch #{epoch:3d} =============== {model_name} ===============')
-        
             scheduler.adjust_lr(epoch)
-            train_loss, train_time = self.train_epoch(epoch=epoch,
-                                                      train_loader=train_loader, 
-                                                      optimizer=optimizer, 
-                                                      criterion=criterion, 
-                                                      scaler=scaler)
-            val_loss, num_subjects, _, _, val_time = self.validate(val_loader)
-            
-            val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
-            val_log_path = os.path.join(val_loss_dir, "val_loss_log")
-            np.save(val_log_path, val_loss_log)
 
-            train_loss = torch.tensor(train_loss).cuda(non_blocking=True)
-            val_loss = torch.tensor(val_loss).cuda(non_blocking=True)
-            val_loss = val_loss / num_subjects
-            
-            is_new_best = val_loss < best_val_loss
-            best_val_loss = min(best_val_loss, val_loss)
+            # K-Fold cross-validation
+            for val_fold in range(fold_num):
+                print(f"Fold {val_fold + 1}/{fold_num} for class {class_label}")
+                train_loader, val_loader = next(create_data_loaders(
+                    train_data_path=self.args.data_path_train,
+                    val_data_path=self.args.data_path_val,
+                    args=self.args,
+                    index_file=index_file,
+                    shuffle=True,
+                    isforward=False,
+                    augmentation=self.args.data_augmentation
+                ))
+        
+                train_loss, train_time = self.train_epoch(epoch=epoch,
+                                                         train_loader=train_loader, 
+                                                         optimizer=optimizer, 
+                                                         criterion=criterion, 
+                                                         scaler=scaler,
+                                                         fold=val_fold)
+                val_loss, num_subjects, _, _, val_time = self.validate(val_loader)
+                
+                val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
+                val_log_path = os.path.join(val_loss_dir, "val_loss_log")
+                np.save(val_log_path, val_loss_log)
 
-            self.save_model(model_name=model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=optimizer, is_best=is_new_best)
-            print(
-                f'Epoch = [{epoch:3d}/{self.args.num_epochs:3d}]\tTrainLoss = {train_loss:.4g}\t'
-                f'ValLoss = {val_loss:.4g}\tTrainTime = {train_time:.4f}s\tValTime = {val_time:.4f}s',
-            )
+                train_loss = torch.tensor(train_loss).cuda(non_blocking=True)
+                val_loss = torch.tensor(val_loss).cuda(non_blocking=True)
+                val_loss = val_loss / num_subjects
+                
+                is_new_best = val_loss < best_val_loss
+                best_val_loss = min(best_val_loss, val_loss)
+
+                self.save_model(model_name=model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=optimizer, is_best=is_new_best)
+                print(
+                    f'Epoch = [{epoch + 1:3d}/{self.args.num_epochs:3d}]   '
+                    f'TrainLoss = {train_loss:.4g}   '
+                    f'ValLoss = {val_loss:.4g}   '
+                    f'TrainTime = {train_time:.4f}s   '
+                    f'ValTime = {val_time:.4f}s   '
+                )
     
 
     def class_split(self):
@@ -295,8 +300,9 @@ class FastMRI():
         
         if need_classification:
             print("Classification files not found. Running classification...")
-            input_folder = self.args.data_path_train / self.args.input_key
-            _, _ = classify_and_index(input_folder, output_base)
+            train_dir = self.args.data_path_train / self.args.input_key
+            val_dir = self.args.data_path_val / self.args.input_key
+            _, _ = classify_and_index(train_dir, val_dir, output_base)
             print("Classification completed!")
         else:
             print("Found existing classification files! Skipping classification step...")

@@ -47,7 +47,11 @@ def parse():
     
     # MoE hyperparameter
     parser.add_argument('--use-moe', type=bool, default=False, help='Use Mixture of Experts training')
-    parser.add_argument('--class-split-path', type=Path, default="D://Data/train/class_indices", help="Class indicating file location")
+    parser.add_argument('--class-split-path', type=Path, default="D://Data/class_indices", help="Class indicating file location")
+
+    # K-Fold hyperparameter
+    parser.add_argument('--k-fold', type=bool, default=False, help='Use K-Fold cross-validation')
+    parser.add_argument('--num-folds', type=int, default=10, help='Number of folds for K-Fold cross-validation')
 
     # model hyperparameter
     parser.add_argument('-m', '--model', type=str, default='fivarnet', choices=['varnet', 'fivarnet'], help='Model type')
@@ -72,7 +76,8 @@ if __name__ == '__main__':
     if args.seed is not None:
         seed_fix(args.seed)
     
-    args.use_moe = True
+    # args.use_moe = False
+    # args.k_fold = False
 
     task = FastMRI(args)
     # task.print_model()

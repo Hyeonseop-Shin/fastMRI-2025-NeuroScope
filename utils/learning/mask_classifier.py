@@ -2,6 +2,7 @@ import os
 import h5py
 import numpy as np
 import pandas as pd
+from glob import glob
 from tqdm import tqdm
 
 class MRIClassifier:
@@ -31,7 +32,7 @@ class MRIClassifier:
             'class_label': f"{acceleration}-{anatomy}"
         }
 
-def classify_and_index(input_folder, output_base, brain_width_range=(390, 400), mask_threshold=95, print_freq=10):
+def classify_and_index(train_path, val_path, output_base, brain_width_range=(390, 400), mask_threshold=95, print_freq=10):
     """
     Classify MRI files and create index files for each class
     
@@ -43,42 +44,44 @@ def classify_and_index(input_folder, output_base, brain_width_range=(390, 400), 
     
     # Step 1: Classify all files
     records = []
-    files = [f for f in os.listdir(input_folder) if f.endswith('.h5')]
-    
-    print(f"Classifying {len(files)} files...")
-    for fname in tqdm(sorted(files)):
-        
-        path = os.path.join(input_folder, fname)
-        classification = classifier.classify(path)
+    train_files = [os.path.join(train_path, f) for f in os.listdir(train_path) if f.endswith('.h5')]
+    val_files = [os.path.join(val_path, f) for f in os.listdir(val_path) if f.endswith('.h5')]
+    total_files = train_files + val_files
+
+    print(f"Classifying {len(total_files)} files...")
+    for file_path in tqdm(sorted(total_files)):
+
+        classification = classifier.classify(file_path)
         records.append({
-            'file': fname,
+            'file': os.path.basename(file_path),
             'anatomy': classification['anatomy'],
             'acceleration': classification['acceleration'],
-            'class': classification['class_label']
+            'class': classification['class_label'],
+            'path': file_path
         })
     
     # Step 2: Group by class and save index files
     df = pd.DataFrame(records)
-    class_groups = df.groupby('class')['file'].apply(list).to_dict()
+    class_groups = df.groupby('class')['path'].apply(list).to_dict()
     
     os.makedirs(output_base, exist_ok=True)
     index_files = []
     
-    for class_label, file_list in class_groups.items():
-        index_path = os.path.join(output_base, f"{class_label}.txt")
-        index_files.append(index_path)
+    for class_label, path_list in class_groups.items():
+        index_file_path = os.path.join(output_base, f"{class_label}.txt")
+        index_files.append(index_file_path)
         
-        with open(index_path, 'w') as f:
-            for fname in file_list:
-                f.write(fname + '\n')
-        
-        print(f"Created index: {index_path} ({len(file_list)} files)")
+        with open(index_file_path, 'w') as f:
+            for path in path_list:
+                f.write(path + '\n')
+
+        print(f"Created index: {index_file_path} ({len(path_list)} files)")
     
     # Step 3: Print statistics
     total = sum(len(files) for files in class_groups.values())
     print("\n=== MoE Classification Statistics ===")
-    for class_label, file_list in class_groups.items():
-        count = len(file_list)
+    for class_label, path_list in class_groups.items():
+        count = len(path_list)
         percentage = (count/total)*100
         print(f"{class_label}: {count} files ({percentage:.1f}%)")
     print("=====================================")
