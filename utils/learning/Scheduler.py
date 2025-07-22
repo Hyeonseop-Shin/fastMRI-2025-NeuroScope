@@ -5,12 +5,12 @@ class Scheduler:
     def __init__(self, optimizer: torch.optim):
         self.optimizer = optimizer
 
-    def adjust_lr(self, epoch: int) -> float:
-        lr = self.get_lr(epoch)
+    def adjust_lr(self, step: int) -> float:
+        lr = self.get_lr(step)
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
 
-        print(f"Adjusting learning rate to {lr:.6f} at epoch {epoch}")
+        print(f"Adjusting learning rate to {lr:.6f}")
         return lr
 
     def get_lr(self, epoch: int) -> float:

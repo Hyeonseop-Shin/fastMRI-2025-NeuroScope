@@ -231,39 +231,3 @@ def create_data_loaders(train_data_path: Union[str, Path],
 
         yield train_loader, val_loader
 
-
-def create_evaluation_loaders(data_path: Union[str, Path], 
-                              args, 
-                              isforward: bool = False) -> DataLoader:
-    """Create evaluation data loader"""
-    config = DatasetConfig(args, isforward)
-    
-    kspace_root = Path(data_path) / "kspace"
-    image_root = Path(data_path) / "image" if not isforward else None
-
-    dataset = _create_dataset(
-        kspace_root, image_root, None,  # Load all files
-        config, augmentation=False
-    )
-    
-    return DataLoader(dataset=dataset, batch_size=config.batch_size, shuffle=False)
-
-# Example usage
-# if __name__ == '__main__':
-    # Standard usage
-    # loader = create_data_loaders("/root/Data/train", args)
-    
-    # MoE usage
-    # class_indices = {
-    #     'acc4-brain': '/root/Data/train/class_indices/acc4-brain.txt',
-    #     'acc4-knee': '/root/Data/train/class_indices/acc4-knee.txt',
-    #     'acc8-brain': '/root/Data/train/class_indices/acc8-brain.txt',
-    #     'acc8-knee': '/root/Data/train/class_indices/acc8-knee.txt'
-    # }
-    # moe_loaders = create_moe_data_loaders(
-    #     "/root/Data/train/kspace", 
-    #     "/root/Data/train/image", 
-    #     class_indices, 
-    #     args
-    # )
-    # pass

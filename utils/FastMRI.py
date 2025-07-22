@@ -19,7 +19,7 @@ from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss
 from utils.model.VarNet import VarNet
 from utils.model.FIVarNet import FIVarNet
 from utils.learning.Scheduler import ConstantScheduler, CosineScheduler, WarmupCosineScheduler, DoubleWarmupCosineScheduler
-from utils.learning.mask_classifier import classify_and_index
+from utils.learning.mask_classifier import classify_and_index, MRIClassifier
 
 
 class FastMRI():
@@ -28,6 +28,7 @@ class FastMRI():
 
         self.device = self._get_device(args)
         self.model = self._build_model(args).to(self.device)
+        self.mri_classifier = self._select_MRI_classifier()
 
 
     def _get_device(self, args):
@@ -75,24 +76,29 @@ class FastMRI():
             raise NotImplementedError(f"Invalid loss type: {self.args.criterion}")
         return criterion
     
+    def _select_MRI_classifier(self):
+        return MRIClassifier()
+    
 
     def _select_scheduler(self, optimizer):
+        eff_epochs = self.args.num_epochs if not self.args.k_fold else self.args.num_epochs * self.args.num_folds
+
         if self.args.scheduler == 'cosine':
             scheduler = CosineScheduler(optimizer, 
-                                        total_epochs=self.args.num_epochs, 
+                                        total_epochs=eff_epochs, 
                                         lr_max=self.args.lr,
                                         lr_min=self.args.lr_min1)
         elif self.args.scheduler == 'constant':
             scheduler = ConstantScheduler(optimizer, lr=self.args.lr)
         elif self.args.scheduler == 'warmup_cosine':
-            scheduler = WarmupCosineScheduler(optimizer, 
-                                             total_epochs=self.args.num_epochs, 
+            scheduler = WarmupCosineScheduler(optimizer,
+                                             total_epochs=eff_epochs,
                                              warmup_epochs=self.args.warmup1,
                                              lr_max=self.args.lr)
         elif self.args.scheduler == 'double_warmup_cosine':
             scheduler = DoubleWarmupCosineScheduler(
                 optimizer,
-                total_epochs=self.args.num_epochs,
+                total_epochs=eff_epochs,
                 warmup1=self.args.warmup1,
                 anneal1=self.args.anneal1,
                 warmup2=self.args.warmup2,
@@ -123,8 +129,14 @@ class FastMRI():
         print(str(self.model))
 
 
-    def save_model(self, model_name, exp_dir, epoch, val_loss, optimizer, is_best=False):
-        save_name = f"e{epoch}_loss{val_loss:.4f}.pt"
+    def reset_model(self):
+        self.model = self._build_model(self.args).to(self.device)
+        self.optimizer = self._select_optimizer()
+        self.scheduler = self._select_scheduler(self.optimizer)
+
+
+    def save_model(self, model_name, exp_dir, epoch, val_loss, optimizer, fold, is_best=False):
+        save_name = f"epoch{epoch}_fold{fold}_loss{val_loss:.4f}.pt"
         torch.save(
             {
                 'name': model_name,
@@ -200,19 +212,24 @@ class FastMRI():
             target = target.cuda(non_blocking=True)
             maximum = maximum.cuda(non_blocking=True)
 
-            output = self.model(kspace, mask, is_training=True)
-            data_range = maximum
+            with torch.amp.autocast(device_type='cuda', dtype=torch.float32):
+                output = self.model(kspace, mask, is_training=True)
+                data_range = maximum
 
-            loss = criterion(output, target, data_range)
-            loss = loss / accumulation_step
+                loss = criterion(output, target, data_range) 
+                loss = loss / accumulation_step
+
 
             loss.backward()
-            total_loss += loss.item() * accumulation_step
+            # scaler.scale(loss).backward()
 
             if (iter + 1) % accumulation_step == 0 or (iter + 1) == len_loader:
                 optimizer.step()
+                # scaler.step(optimizer)
+                # scaler.update()
                 optimizer.zero_grad()
 
+            total_loss += loss.item() * accumulation_step
             if (iter + 1) % self.args.report_interval == 0:
                 log_template = f'Epoch = [{epoch + 1:3d}/{self.args.num_epochs:3d}]  ' + \
                     (f'Fold = [{fold + 1:2d}/{self.args.num_folds:2d}]  ' if self.args.k_fold else '') + \
@@ -241,11 +258,12 @@ class FastMRI():
         model_name = f"{self.args.net_name}_{class_label}"
         fold_num = self.args.num_folds if self.args.k_fold else 1
         for epoch in range(start_epoch, self.args.num_epochs):
-            print(f'Epoch #{epoch:3d} =============== {model_name} ===============')
-            scheduler.adjust_lr(epoch)
+            print(f'Epoch #{epoch+1:3d} =============== {model_name} ===============')
 
             # K-Fold cross-validation
             for val_fold in range(fold_num):
+                scheduler.adjust_lr(epoch*fold_num + val_fold)
+
                 print(f"Fold {val_fold + 1}/{fold_num} for class {class_label}")
                 train_loader, val_loader = next(create_data_loaders(
                     train_data_path=self.args.data_path_train,
@@ -276,7 +294,7 @@ class FastMRI():
                 is_new_best = val_loss < best_val_loss
                 best_val_loss = min(best_val_loss, val_loss)
 
-                self.save_model(model_name=model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=optimizer, is_best=is_new_best)
+                self.save_model(model_name=model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=optimizer, fold=val_fold, is_best=is_new_best)
                 print(
                     f'Epoch = [{epoch + 1:3d}/{self.args.num_epochs:3d}]   '
                     f'TrainLoss = {train_loss:.4g}   '
@@ -330,6 +348,7 @@ class FastMRI():
             exp_dir, val_loss_dir = self.set_class_directory_path(net_name=self.args.net_name, 
                                                                   class_label=class_label,
                                                                   result_path=self.args.result_path)
+            self.reset_model()  # Reset model parameters before training each class
             self.train_single_class(class_label=class_label, 
                                     index_file=index_file,
                                     exp_dir=exp_dir,
