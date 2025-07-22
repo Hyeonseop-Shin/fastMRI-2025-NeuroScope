@@ -12,12 +12,16 @@ class MRIClassifier:
         self.brain_width_range = brain_width_range
         self.mask_threshold = mask_threshold
     
-    def classify(self, h5_path):
+    def classify_by_path(self, h5_path):
         """Classify MRI data into anatomy and acceleration types"""
         with h5py.File(h5_path, 'r') as f:
             kspace = f['kspace'][:]
             mask = f['mask'][:]
         
+        return self.classify(kspace, mask)
+    
+    def classify(self, kspace, mask):
+        """Classify MRI data from kspace and mask arrays"""
         # Anatomy classification (brain/knee)
         width = kspace.shape[-1]
         anatomy = 'brain' if self.brain_width_range[0] <= width <= self.brain_width_range[1] else 'knee'
@@ -51,7 +55,7 @@ def classify_and_index(train_path, val_path, output_base, brain_width_range=(390
     print(f"Classifying {len(total_files)} files...")
     for file_path in tqdm(sorted(total_files)):
 
-        classification = classifier.classify(file_path)
+        classification = classifier.classify_by_path(file_path)
         records.append({
             'file': os.path.basename(file_path),
             'anatomy': classification['anatomy'],
