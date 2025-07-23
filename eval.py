@@ -57,5 +57,4 @@ if __name__ == "__main__":
 
     task = EvalMRI(args)
     # task.shit(data_path=Path("/root/Data/leaderboard/acc4/"), recon_anatomy='brain')
-    task.partial_reconstruction(acc=4, anatomy='brain')
-    task.partial_lb_eval(acc=4, anatomy='brain')
+    task.partial_eval(acc=4, anatomy='brain')

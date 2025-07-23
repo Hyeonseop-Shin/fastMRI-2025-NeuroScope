@@ -11,7 +11,7 @@ from tqdm import tqdm
 import torch
 import torch.nn.functional as F
 
-from utils.data.load_data import create_eval_loaders
+from utils.data.eval_loader import create_eval_loaders
 from utils.model.VarNet import VarNet
 from utils.model.FIVarNet import FIVarNet
 from utils.learning.mask_classifier import MRIClassifier
@@ -60,10 +60,13 @@ def forward(args, leaderboard_data_path=None, your_data_path=None, anatomy='all'
     file_num = 58 if anatomy == 'all' else 29
 
     leaderboard_data = glob.glob(os.path.join(leaderboard_data_path, '*.h5'))
+    your_data = glob.glob(os.path.join(your_data_path, '*.h5'))
+    if anatomy != 'all':
+        leaderboard_data = [f for f in leaderboard_data if anatomy in os.path.basename(f)]
+        your_data = [f for f in your_data if anatomy in os.path.basename(f)]
+
     if len(leaderboard_data) != file_num:
         raise  NotImplementedError(f'Leaderboard Data Size Should Be {file_num}')
-
-    your_data = glob.glob(os.path.join(your_data_path, '*.h5'))
     if len(your_data) != file_num:
         raise  NotImplementedError(f'Your Data Size Should Be {file_num}')           
     
@@ -150,6 +153,8 @@ class EvalMRI:
                              sens_chans=args.sens_chans)
         else:
             raise NotImplementedError(f"Model {args.model} is not implemented.")
+        
+        return model
         
 
     def _select_MRI_classifier(self):
