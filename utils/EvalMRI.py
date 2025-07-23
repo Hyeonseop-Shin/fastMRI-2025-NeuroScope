@@ -6,6 +6,7 @@ import os
 import cv2 
 import h5py
 import glob
+from tqdm import tqdm
 
 import torch
 import torch.nn.functional as F
@@ -51,24 +52,28 @@ class SSIM(SSIMLoss):
         return S.mean()
     
 
-def forward(args, leaderboard_data_path=None, your_data_path=None):
+def forward(args, leaderboard_data_path=None, your_data_path=None, anatomy='all'):
 
     device = torch.device(f'cuda:{args.GPU_NUM}' if torch.cuda.is_available() else 'cpu')
     torch.cuda.set_device(device)
 
+    file_num = 58 if anatomy == 'all' else 29
+
     leaderboard_data = glob.glob(os.path.join(leaderboard_data_path, '*.h5'))
-    if len(leaderboard_data) != 58:
-        raise  NotImplementedError('Leaderboard Data Size Should Be 58')
+    if len(leaderboard_data) != file_num:
+        raise  NotImplementedError(f'Leaderboard Data Size Should Be {file_num}')
 
     your_data = glob.glob(os.path.join(your_data_path, '*.h5'))
-    if len(your_data) != 58:
-        raise  NotImplementedError('Your Data Size Should Be 58')           
+    if len(your_data) != file_num:
+        raise  NotImplementedError(f'Your Data Size Should Be {file_num}')           
     
     ssim_total = 0
     idx = 0
     ssim_calculator = SSIM().to(device=device)
+
+    test_list = ['brain_test', 'knee_test'] if anatomy == 'all' else [f"{anatomy}_test"]
     with torch.no_grad():
-        for part in ['brain_test', 'knee_test']:
+        for part in test_list:
             for i_subject in range(29):
                 l_fname = os.path.join(leaderboard_data_path, part + str(i_subject+1) + '.h5')
                 y_fname = os.path.join(your_data_path, part + str(i_subject+1) + '.h5')
@@ -128,10 +133,21 @@ class EvalMRI:
       
 
     def _build_model(self, args):
-        if args.model == 'VarNet':
-            return VarNet(args)
-        elif args.model == 'FIVarNet':
-            return FIVarNet(args)
+
+        model_name = args.model.lower()
+        assert model_name in ['varnet', 'fivarnet'], f"Unknown model name: {args.model}"
+
+
+        if model_name == 'varnet':
+            model = VarNet(num_cascades=args.feature_cascades, 
+                           chans=args.chans, 
+                           sens_chans=args.sens_chans)
+        elif model_name == 'fivarnet':
+            model = FIVarNet(num_feature_cascades=args.feature_cascades,
+                             num_image_cascades=args.image_cascades,
+                             use_attn=args.use_attention,
+                             chans=args.chans,
+                             sens_chans=args.sens_chans)
         else:
             raise NotImplementedError(f"Model {args.model} is not implemented.")
         
@@ -143,20 +159,21 @@ class EvalMRI:
     def load_model(self, model_type):
         assert model_type in self.ckpt_path.keys(), f"Invalid model type: {model_type}"
         checkpoint_path = self.ckpt_path[model_type]
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
         
         self.model.load_state_dict(checkpoint['model'])
         self.current_model = model_type
     
 
-    def reconstruct(self, data_path=None, forward_dir=None):
+    def reconstruct(self, data_path=None, forward_dir=None, recon_anatomy='all'):
         reconstructions = defaultdict(dict)
         data_loader = create_eval_loaders(data_path=data_path,
                                           args=self.args,
-                                          isforward=True)
+                                          isforward=True,
+                                          anatomy=recon_anatomy)
 
         with torch.no_grad():
-            for (mask, kspace, _, _, fnames, slices) in data_loader:
+            for (mask, kspace, _, _, fnames, slices) in tqdm(data_loader):
                 kspace = kspace.to(self.device, non_blocking=True)
                 mask = mask.to(self.device, non_blocking=True)
 
@@ -194,13 +211,15 @@ class EvalMRI:
         acc4_data_path = self.args.leaderboard_path / "acc4"
         acc4_save_path = self.args.forward_dir / "acc4"
         self.reconstruct(data_path=acc4_data_path,
-                         forward_dir=acc4_save_path)
+                         forward_dir=acc4_save_path,
+                         recon_anatomy='all')
 
         # acc8
         acc8_data_path = self.args.leaderboard_path / "acc8"
         acc8_save_path = self.args.forward_dir / "acc8"
         self.reconstruct(data_path=acc8_data_path,
-                         forward_dir=acc8_save_path)
+                         forward_dir=acc8_save_path,
+                         recon_anatomy='all')
 
         reconstructions_time = time.time() - start_time
         
@@ -214,13 +233,13 @@ class EvalMRI:
         """Evaluate the model on the leaderboard dataset"""
         
         # acc4
-        acc4_data_path = self.args.leaderboard_path / "acc4"
+        acc4_data_path = self.args.leaderboard_path / "acc4/image"
         acc4_save_path = self.args.forward_dir / "acc4"
         SSIM_acc4 = forward(self.args,
                             leaderboard_data_path=acc4_data_path,
                             your_data_path=acc4_save_path)
         # acc8
-        acc8_data_path = self.args.leaderboard_path / "acc8"
+        acc8_data_path = self.args.leaderboard_path / "acc8/image"
         acc8_save_path = self.args.forward_dir / "acc8"
         SSIM_acc8 = forward(self.args,
                             leaderboard_data_path=acc8_data_path,
@@ -231,6 +250,42 @@ class EvalMRI:
         print("Leaderboard SSIM (acc4): {:.4f}".format(SSIM_acc4))
         print("Leaderboard SSIM (acc8): {:.4f}".format(SSIM_acc8))
     
+
+    def partial_reconstruction(self, acc, anatomy):
+        if not self.args.forward_dir.exists():
+            self.args.forward_dir.mkdir(parents=True, exist_ok=True)
+        
+        assert acc in [4,8]
+        assert anatomy in ['brain', 'knee']
+
+        data_path = self.args.leaderboard_path / f"acc{acc}"
+        save_path = self.args.forward_dir / f"acc{acc}"
+        self.reconstruct(data_path=data_path,
+                         forward_dir=save_path,
+                         recon_anatomy=anatomy)
+        
+        print(f"Reconstruciton for {anatomy}-acc{acc} completed!")
+
+    def partial_lb_eval(self, acc, anatomy):
+
+        assert acc in [4,8]
+        assert anatomy in ['brain', 'knee']
+
+        data_path = self.args.leaderboard_path / f"acc{acc}/image"
+        save_path = self.args.forward_dir / f"acc{acc}/"
+        SSIM = forward(self.args,
+                       leaderboard_data_path=data_path,
+                       your_data_path=save_path,
+                       anatomy=anatomy)
+        
+        print(f"{anatomy}-acc{acc} SSIM = {SSIM}")
+
+
     def evaluate(self):
         self.run_reconstruction()
         self.leaderboard_eval()
+
+
+    def partial_eval(self, acc, anatomy):
+        self.partial_reconstruction(acc=acc, anatomy=anatomy)
+        self.partial_lb_eval(acc=acc, anatomy=anatomy)

@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 class SliceData(Dataset):
-    def __init__(self, root, transform, input_key, target_key, forward=False):
+    def __init__(self, root, transform, input_key, target_key, forward=False, anatomy='all'):
         self.transform = transform
         self.input_key = input_key
         self.target_key = target_key
@@ -23,6 +23,9 @@ class SliceData(Dataset):
                 ]
 
         kspace_files = list(Path(root / "kspace").iterdir())
+        if anatomy != 'all':
+            kspace_files = [f for f in kspace_files if anatomy in f.name]
+
         for fname in sorted(kspace_files):
             num_slices = self._get_metadata(fname)
 
@@ -63,7 +66,7 @@ class SliceData(Dataset):
         return self.transform(mask, input, target, attrs, kspace_fname.name, dataslice)
 
 
-def create_eval_loaders(data_path, args, shuffle=False, isforward=False):
+def create_eval_loaders(data_path, args, shuffle=False, isforward=False, anatomy='all'):
     if isforward == False:
         max_key_ = args.max_key
         target_key_ = args.target_key
@@ -76,7 +79,8 @@ def create_eval_loaders(data_path, args, shuffle=False, isforward=False):
         transform=DataTransform(isforward, max_key_, augmentation=False),
         input_key=args.input_key,
         target_key=target_key_,
-        forward = isforward
+        forward = isforward,
+        anatomy=anatomy
     )
 
     data_loader = DataLoader(

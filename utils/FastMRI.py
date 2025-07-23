@@ -35,16 +35,21 @@ class FastMRI:
     
 
     def _build_model(self, args):
-        if args.model == 'varnet':
+
+        model_name = args.model.lower()
+        assert model_name in ['varnet', 'fivarnet'], f"Unknown model name: {args.model}"
+
+        if model_name == 'varnet':
             model = VarNet(num_cascades=args.feature_cascades, 
                            chans=args.chans, 
                            sens_chans=args.sens_chans)
-        elif args.model == 'fivarnet':
+        elif model_name == 'fivarnet':
             model = FIVarNet(num_feature_cascades=args.feature_cascades,
                              num_image_cascades=args.image_cascades,
                              use_attn=args.use_attention,
                              chans=args.chans,
-                             sens_chans=args.sens_chans)
+                             sens_chans=args.sens_chans,
+                             acceleration=args.acc)
         else:
             raise NotImplementedError(f"Invalid model: {args.model}")
         return model
