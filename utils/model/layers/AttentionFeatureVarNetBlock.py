@@ -21,9 +21,8 @@ class AttentionFeatureVarNetBlock(nn.Module):
         decoder: FeatureDecoder,
         acceleration: int,
         feature_processor: Unet2d,
-        attention_layer: AttentionPE,
+        attention_layer: None | AttentionPE,
         use_extra_feature_conv: bool = False,
-        use_attn: bool = True
     ):
         super().__init__()
         self.encoder = encoder
@@ -34,7 +33,6 @@ class AttentionFeatureVarNetBlock(nn.Module):
         self.dc_weight = nn.Parameter(torch.ones(1))
         feature_chans = self.encoder.feature_chans
         self.acceleration = acceleration
-        self.use_attn = use_attn
 
         self.input_norm = nn.InstanceNorm2d(feature_chans)
         self.relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
@@ -125,7 +123,7 @@ class AttentionFeatureVarNetBlock(nn.Module):
         """
 
         # Apply attention
-        if self.use_attn:
+        if self.attention_layer:
             feature_image = feature_image._replace(
                 features=self.attention_layer(feature_image.features, self.acceleration)
             )

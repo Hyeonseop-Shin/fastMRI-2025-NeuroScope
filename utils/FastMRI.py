@@ -46,7 +46,7 @@ class FastMRI:
         elif model_name == 'fivarnet':
             model = FIVarNet(num_feature_cascades=args.feature_cascades,
                              num_image_cascades=args.image_cascades,
-                             use_attn=args.use_attention,
+                             attn_stride=args.attention_stride,
                              chans=args.chans,
                              sens_chans=args.sens_chans,
                              acceleration=args.acc)
@@ -162,7 +162,7 @@ class FastMRI:
 
 
     def load_model(self, ckpt_path):
-        checkpoint = torch.load(ckpt_path, map_location="cpu")
+        checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=False)
         self.model.load_state_dict(checkpoint['model'])
 
 
@@ -240,10 +240,10 @@ class FastMRI:
     def class_split(self):
         output_base = self.args.class_split_path
         class_groups = {
-            "acc4-brain": f"{output_base}/acc4-brain.txt",
-            "acc4-knee": f"{output_base}/acc4-knee.txt", 
-            "acc8-brain": f"{output_base}/acc8-brain.txt",
-            "acc8-knee": f"{output_base}/acc8-knee.txt"
+            (4, "brain"): f"{output_base}/acc4-brain.txt",
+            (4, "knee"): f"{output_base}/acc4-knee.txt", 
+            (8, "brain"): f"{output_base}/acc8-brain.txt",
+            (8, "knee"): f"{output_base}/acc8-knee.txt"
         }
         
         need_classification = not all(os.path.exists(file) for file in class_groups.values())
@@ -276,11 +276,13 @@ class FastMRI:
     def train(self):
         class_groups = self.class_split() if self.args.use_moe else {"all": None}
 
-        for class_label, index_file in class_groups.items():
+        for (acc, anatomy), index_file in class_groups.items():
+            class_label = f"acc{acc}-{anatomy}"
             
             exp_dir, val_loss_dir = self.set_class_directory_path(net_name=self.args.net_name, 
                                                                   class_label=class_label,
                                                                   result_path=self.args.result_path)
+            self.args.acc = acc
             self.reset_model(retrain=self.args.retrain, class_label=class_label)  # Reset model parameters before training each class
             self.train_single_class(class_label=class_label, 
                                     index_file=index_file,

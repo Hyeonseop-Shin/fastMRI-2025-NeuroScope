@@ -15,7 +15,7 @@ accumulation_step = 2
 model = 'fivarnet'
 feature_cascades = 8
 image_cascades = 2
-use_attention = False
+attention_stride = 3
 chans = 32
 sen_chans = 8
 
@@ -47,7 +47,7 @@ anneal2 = 40
 # Saving hyperparameters
 seed = 2025
 result_path = os.path.join(root_path, "results")
-model_name = f"{model}_f{feature_cascades}_i{image_cascades}{'_attn' if use_attention else ''}{'_augmentation' if data_augmentation else ''}_c{chans}_s{sen_chans}_epoch{epoch}_fold{num_folds}_seed{seed}"
+model_name = f"{model}_f{feature_cascades}_i{image_cascades}_attn{attention_stride}{'_augmentation' if data_augmentation else ''}_c{chans}_s{sen_chans}_epoch{epoch}_fold{num_folds}_seed{seed}"
 
 instruction_template = f"{python_path} -u {train_path} \
 -b {batch} \
@@ -56,7 +56,7 @@ instruction_template = f"{python_path} -u {train_path} \
 --model {model} \
 -f {feature_cascades} \
 -i {image_cascades} \
--a {use_attention} \
+-a {attention_stride} \
 --chans {chans} \
 --sens-chans {sen_chans} \
 --use-moe {use_moe} \

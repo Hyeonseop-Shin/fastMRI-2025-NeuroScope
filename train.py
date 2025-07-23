@@ -69,11 +69,10 @@ def parse():
     parser.add_argument('-m', '--model', type=str, default='fivarnet', help='Model type')
     parser.add_argument('-f', '--feature_cascades', type=int, default=3, help='Number of cascades | Should be less than 12')
     parser.add_argument('-i', '--image_cascades', type=int, default=3, help='Number of cascades | Should be less than 12')
-    parser.add_argument('-a', '--use_attention', type=str2bool, default=False, choices=[True, False], help='Applying block-wise attention for feature processor')
+    parser.add_argument('-a', '--attention-stride', type=int, default=0, help='Applying block-wise attention for feature processor')
     parser.add_argument('--chans', type=int, default=32, help='Number of channels for cascade U-Net | 18 in original varnet')
     parser.add_argument('--sens-chans', type=int, default=8, help='Number of channels for sensitivity map U-Net | 8 in original varnet')
     parser.add_argument('--acc', type=int, default=4, help='Acceleration')
-    
 
     # saving hyperparameter
     parser.add_argument('--result-path', type=Path, default='C://Users/bigse/OneDrive/Desktop/fastMRI-2025-NeuroScope/results', help='Directory of train/val results')

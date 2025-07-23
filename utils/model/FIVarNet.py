@@ -38,7 +38,7 @@ class FIVarNet(nn.Module):
         mask_center: bool = True,
         image_conv_cascades: Optional[List[int]] = None,
         kspace_mult_factor: float = 1e6,
-        use_attn: bool = True
+        attn_stride: int = 0
     ):
         super().__init__()
         if image_conv_cascades is None:
@@ -53,9 +53,20 @@ class FIVarNet(nn.Module):
         )
         self.encoder = FeatureEncoder(in_chans=2, feature_chans=chans)
         self.decoder = FeatureDecoder(feature_chans=chans, out_chans=2)
+
+        # Make attention application sequence
+        attn_seq = list()
+        if attn_stride == 0:
+            attn_seq = [False for _ in range(num_feature_cascades)]
+        else:
+            for i in range(num_feature_cascades):
+                attn_seq.append(i % attn_stride == 0)
+
         feature_cascades = []
         for ind in range(num_feature_cascades):
             use_image_conv = ind in self.image_conv_cascades
+            use_attn = attn_seq[ind]
+
             feature_cascades.append(
                 AttentionFeatureVarNetBlock(
                     encoder=self.encoder,
@@ -64,9 +75,8 @@ class FIVarNet(nn.Module):
                     feature_processor=Unet2d(
                         in_chans=chans, out_chans=chans, num_pool_layers=pools
                     ),
-                    attention_layer=AttentionPE(in_chans=chans),
-                    use_extra_feature_conv=use_image_conv,
-                    use_attn=use_attn
+                    attention_layer=AttentionPE(in_chans=chans) if use_attn else None,
+                    use_extra_feature_conv=use_image_conv
                 )
             )
 
