@@ -1,25 +1,21 @@
 
 import shutil
 import numpy as np
-import time
 from pathlib import Path
-import copy
-from collections import defaultdict
 import os
-from tqdm import tqdm
 
 import torch
 from torch import Tensor
 from torch import optim
-import torch.nn as nn
 
 from utils.data.load_data import create_data_loaders
-from utils.common.utils import ssim_loss
 from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss
 from utils.model.VarNet import VarNet
 from utils.model.FIVarNet import FIVarNet
+
 from utils.learning.Scheduler import ConstantScheduler, CosineScheduler, WarmupCosineScheduler, DoubleWarmupCosineScheduler
 from utils.learning.mask_classifier import classify_and_index, MRIClassifier
+from utils.learning.train_part import train_epoch, validate
 
 
 class FastMRI:
@@ -175,94 +171,6 @@ class FastMRI:
         return val_loss_log
 
 
-    def validate(self, val_loader):
-        self.model.eval()
-        reconstructions = defaultdict(dict)
-        targets = defaultdict(dict)
-        start = time.perf_counter()
-
-        with torch.no_grad():
-            for _, data in enumerate(val_loader):
-                mask, kspace, target, _, fnames, slices = data
-            
-                kspace = kspace.cuda(non_blocking=True)
-                mask = mask.cuda(non_blocking=True)
-                
-                target_is_valid = torch.is_tensor(target) and target.numel() > 1
-                if target_is_valid:
-                    target = target.cuda(non_blocking=True)
-                
-                output = self.model(kspace, mask, is_training=False)
-
-                for i in range(output.shape[0]):
-                    reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()
-                    
-                    if target_is_valid:
-                        targets[fnames[i]][int(slices[i])] = target[i].cpu().numpy()
-                    else:
-                        targets[fnames[i]][int(slices[i])] = output[i].cpu().numpy()
-
-        for fname in reconstructions:
-            reconstructions[fname] = np.stack(
-                [out for _, out in sorted(reconstructions[fname].items())]
-            )
-        for fname in targets:
-            targets[fname] = np.stack(
-                [out for _, out in sorted(targets[fname].items())]
-            )
-        
-        metric_loss = sum([ssim_loss(targets[fname], reconstructions[fname]) for fname in reconstructions])
-        num_subjects = len(reconstructions)
-        return metric_loss, num_subjects, reconstructions, targets, time.perf_counter() - start
-    
-
-    def train_epoch(self, epoch, train_loader, optimizer, criterion, scaler, fold):
-        self.model.train()
-        start_epoch = start_iter = time.perf_counter()
-        len_loader = len(train_loader)
-        total_loss = 0.
-
-        accumulation_step = self.args.accumulation_step
-        optimizer.zero_grad()
-
-        for iter, data in enumerate(train_loader):
-            mask, kspace, target, maximum, _, _ = data
-            mask = mask.cuda(non_blocking=True)
-            kspace = kspace.cuda(non_blocking=True)
-            target = target.cuda(non_blocking=True)
-            maximum = maximum.cuda(non_blocking=True)
-
-            with torch.amp.autocast(device_type='cuda', dtype=torch.float32):
-                output = self.model(kspace, mask, is_training=True)
-                data_range = maximum
-
-                loss = criterion(output, target, data_range) 
-                loss = loss / accumulation_step
-
-
-            loss.backward()
-            # scaler.scale(loss).backward()
-
-            if (iter + 1) % accumulation_step == 0 or (iter + 1) == len_loader:
-                optimizer.step()
-                # scaler.step(optimizer)
-                # scaler.update()
-                optimizer.zero_grad()
-
-            total_loss += loss.item() * accumulation_step
-            if (iter + 1) % self.args.report_interval == 0:
-                log_template = f'Epoch = [{epoch + 1:3d}/{self.args.num_epochs:3d}]  ' + \
-                    (f'Fold = [{fold + 1:2d}/{self.args.num_folds:2d}]  ' if self.args.k_fold else '') + \
-                    f'Iter = [{iter + 1:4d}/{len_loader:4d}]  ' + \
-                    f'Loss = {loss.item() * accumulation_step:.5f}  ' + \
-                    f'Time = {time.perf_counter() - start_iter:.4f}s'
-                print(log_template)
-                start_iter = time.perf_counter()
-
-        total_loss = total_loss / len_loader
-        return total_loss, time.perf_counter() - start_epoch
-
-
     def train_single_class(self, class_label, index_file=None, exp_dir="./checkpoint", val_loss_dir="./"):
         print(f"\n=============== Training for class: {class_label} ===============")
 
@@ -296,15 +204,17 @@ class FastMRI:
                     augmentation=self.args.data_augmentation
                 ))
         
-                train_loss, train_time = self.train_epoch(epoch=epoch,
-                                                         train_loader=train_loader, 
-                                                         optimizer=optimizer, 
-                                                         criterion=criterion, 
-                                                         scaler=scaler,
-                                                         fold=val_fold)
+                train_loss, train_time = train_epoch(model=self.model,
+                                                     epoch=epoch,
+                                                     train_loader=train_loader, 
+                                                     optimizer=optimizer, 
+                                                     criterion=criterion, 
+                                                     scaler=scaler,
+                                                     fold=val_fold,
+                                                     args=self.args)
                 train_loss = torch.tensor(train_loss).cuda(non_blocking=True)
                 
-                val_loss, num_subjects, _, _, val_time = self.validate(val_loader)
+                val_loss, num_subjects, _, _, val_time = validate(self.model, val_loader)
                 val_loss_log = self.log_val_loss(val_loss_log, epoch, val_loss)
                 val_loss = torch.tensor(val_loss).cuda(non_blocking=True)
                 val_loss = val_loss / num_subjects
