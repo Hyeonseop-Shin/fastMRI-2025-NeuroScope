@@ -5,10 +5,12 @@ import pandas as pd
 from glob import glob
 from tqdm import tqdm
 
+import torch
+
 class MRIClassifier:
     """MRI data classifier for anatomy and acceleration"""
     
-    def __init__(self, brain_width_range=(390, 400), mask_threshold=95):
+    def __init__(self, brain_width_range=(384, 400), mask_threshold=95):
         self.brain_width_range = brain_width_range
         self.mask_threshold = mask_threshold
     
@@ -22,8 +24,25 @@ class MRIClassifier:
     
     def classify(self, kspace, mask):
         """Classify MRI data from kspace and mask arrays"""
+        # Handle both PyTorch tensors and NumPy arrays
+        
+        if hasattr(mask, 'detach'):
+            # PyTorch tensor
+            mask = mask.detach().cpu().numpy()
+        elif isinstance(mask, torch.Tensor):
+            # PyTorch tensor without detach (shouldn't happen but be safe)
+            mask = mask.cpu().numpy()
+        else:
+            # Already NumPy array or similar
+            mask = np.array(mask)
+        
         # Anatomy classification (brain/knee)
-        width = kspace.shape[-1]
+        # Handle complex kspace: if last dim is 2 (real/imag), use shape[-2] for width
+        if kspace.shape[-1] == 2:
+            width = kspace.shape[-2]  # Complex format: [..., height, width, 2]
+        else:
+            width = kspace.shape[-1]  # Standard format: [..., height, width]
+        
         anatomy = 'brain' if self.brain_width_range[0] <= width <= self.brain_width_range[1] else 'knee'
         
         # Acceleration classification
