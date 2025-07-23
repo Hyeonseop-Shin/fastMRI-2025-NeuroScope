@@ -187,12 +187,12 @@ def _create_dataset(kspace_root: Path,
 
 
 def create_data_loaders(train_data_path: Union[str, Path], 
-                       val_data_path: Union[str, Path], 
-                       args, 
-                       index_file: Optional[str] = None, 
-                       shuffle: bool = False, 
-                       isforward: bool = False, 
-                       augmentation: bool = False) -> Iterator[Tuple[DataLoader, DataLoader]]:
+                        val_data_path: Union[str, Path], 
+                        args, 
+                        index_file: Optional[str] = None, 
+                        shuffle: bool = False, 
+                        isforward: bool = False, 
+                        augmentation: bool = False) -> Iterator[Tuple[DataLoader, DataLoader]]:
     """Create standard data loader with k-fold cross-validation"""
     config = DatasetConfig(args, isforward)
     
@@ -231,3 +231,29 @@ def create_data_loaders(train_data_path: Union[str, Path],
 
         yield train_loader, val_loader
 
+def create_eval_loaders(data_path: Union[str, Path],
+                        args,
+                        isforward: bool = False,
+                        shuffle: bool = False) -> DataLoader:
+
+    config = DatasetConfig(args, isforward)
+
+    kspace_root = Path(data_path) / "kspace"
+    image_root = Path(data_path) / "image" if not isforward else None
+
+    # No file list used for eval
+    eval_dataset = _create_dataset(
+        kspace_root=kspace_root,
+        image_root=image_root,
+        file_list=None,
+        config=config,
+        augmentation=False
+    )
+
+    loader = DataLoader(
+        dataset=eval_dataset,
+        batch_size=config.batch_size,
+        shuffle=shuffle,
+    )
+
+    return loader

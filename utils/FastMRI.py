@@ -22,7 +22,7 @@ from utils.learning.Scheduler import ConstantScheduler, CosineScheduler, WarmupC
 from utils.learning.mask_classifier import classify_and_index, MRIClassifier
 
 
-class FastMRI():
+class FastMRI:
     def __init__(self, args):
         self.args = args
 
@@ -107,8 +107,7 @@ class FastMRI():
                 lr_min1=self.args.lr_min1,
                 lr_max2=self.args.lr_max2,
                 lr_min2=self.args.lr_min2
-            )
-            
+            )    
         else:
             raise NotImplementedError(f"Invalid scheduler type: {self.args.scheduler}")
         
@@ -129,10 +128,21 @@ class FastMRI():
         print(str(self.model))
 
 
-    def reset_model(self):
-        self.model = self._build_model(self.args).to(self.device)
-        self.optimizer = self._select_optimizer()
-        self.scheduler = self._select_scheduler(self.optimizer)
+    def reset_model(self, retrain=False, class_label="all"):
+
+        if retrain:
+            ckpt_file = f"{self.args.net_name}_{class_label}/checkpoints/best_model.pt"
+            ckpt_path = self.args.result_path / ckpt_file
+            self.load_model(ckpt_path=ckpt_path)
+
+        else:   # from_scratch
+            if hasattr(self, "model"):
+                del self.model
+                torch.cuda.empty_cache()
+
+            self.model = self._build_model(self.args).to(self.device)
+            self.optimizer = self._select_optimizer()
+            self.scheduler = self._select_scheduler(self.optimizer)
 
 
     def save_model(self, model_name, exp_dir, epoch, val_loss, optimizer, fold, is_best=False):
@@ -153,6 +163,16 @@ class FastMRI():
     def load_model(self, ckpt_path):
         checkpoint = torch.load(ckpt_path, map_location="cpu")
         self.model.load_state_dict(checkpoint['model'])
+
+
+    def log_val_loss(self, val_loss_log: np.ndarray, epoch: int, val_loss: float):
+        val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
+        os.makedirs(self.args.val_loss_dir, exist_ok=True)
+        
+        val_log_path = os.path.join(self.args.val_loss_dir, "val_loss_log.npy")
+        np.save(val_log_path, val_loss_log)
+        
+        return val_loss_log
 
 
     def validate(self, val_loader):
@@ -247,8 +267,9 @@ class FastMRI():
         print(f"\n=============== Training for class: {class_label} ===============")
 
         best_val_loss = 1.
-        start_epoch = 0
         val_loss_log = np.empty((0, 2))
+        start_epoch = self.args.start_epoch
+        last_epoch = start_epoch + self.args.num_epochs
 
         criterion = self._select_criterion().to(self.device)
         optimizer = self._select_optimizer()
@@ -257,7 +278,7 @@ class FastMRI():
 
         model_name = f"{self.args.net_name}_{class_label}"
         fold_num = self.args.num_folds if self.args.k_fold else 1
-        for epoch in range(start_epoch, self.args.num_epochs):
+        for epoch in range(start_epoch, last_epoch):
             print(f'Epoch #{epoch+1:3d} =============== {model_name} ===============')
 
             # K-Fold cross-validation
@@ -281,13 +302,10 @@ class FastMRI():
                                                          criterion=criterion, 
                                                          scaler=scaler,
                                                          fold=val_fold)
-                val_loss, num_subjects, _, _, val_time = self.validate(val_loader)
-                
-                val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
-                val_log_path = os.path.join(val_loss_dir, "val_loss_log")
-                np.save(val_log_path, val_loss_log)
-
                 train_loss = torch.tensor(train_loss).cuda(non_blocking=True)
+                
+                val_loss, num_subjects, _, _, val_time = self.validate(val_loader)
+                val_loss_log = self.log_val_loss(val_loss_log, epoch, val_loss)
                 val_loss = torch.tensor(val_loss).cuda(non_blocking=True)
                 val_loss = val_loss / num_subjects
                 
@@ -348,7 +366,7 @@ class FastMRI():
             exp_dir, val_loss_dir = self.set_class_directory_path(net_name=self.args.net_name, 
                                                                   class_label=class_label,
                                                                   result_path=self.args.result_path)
-            self.reset_model()  # Reset model parameters before training each class
+            self.reset_model(retrain=self.args.retrain, class_label=class_label)  # Reset model parameters before training each class
             self.train_single_class(class_label=class_label, 
                                     index_file=index_file,
                                     exp_dir=exp_dir,

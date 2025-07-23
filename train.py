@@ -30,16 +30,17 @@ def parse():
     
     # Training hyperparameter
     parser.add_argument('-b', '--batch-size', type=int, default=1, help='Batch size')
+    parser.add_argument('--start-epoch', type=int, default=0, help='Start epoch')
     parser.add_argument('-e', '--num-epochs', type=int, default=5, help='Number of epochs')
     parser.add_argument('-n', '--net-name', type=Path, default='fivarnet', help='Name of network')
     parser.add_argument('--optimizer', type=str, default='AdamW', choices=['Adam', 'AdamW'], help='Optimizer')
     parser.add_argument('--criterion', type=str, default='SSIM', choices=['SSIM', 'SSIM_L1'], help='criterion')
     parser.add_argument('--accumulation-step', type=int, default=1, help='Gradient accumulation steps')
-    
+    parser.add_argument('--retrain', type=str2bool, default=False, help="retrain from trained model")
 
     # scheduler hyperparameter
     parser.add_argument('--scheduler', type=str, default='cosine', choices=['cosine', 'constant', 'warmup_cosine', 'double_warmup_cosine'], help='LR scheduler type')
-    parser.add_argument('-l', '--lr', type=float, default=3e-4, help='Max learning rate (after warmup)')
+    parser.add_argument('--lr', type=float, default=3e-4, help='Max learning rate (after warmup)')
     parser.add_argument('--lr-min1', type=float, default=0.00005, help='Min LR after first annealing')
     parser.add_argument('--lr-max2', type=float, default=0.00015, help='Max LR for second warmup')
     parser.add_argument('--lr-min2', type=float, default=0.0, help='Min LR after second annealing')

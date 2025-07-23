@@ -10,7 +10,7 @@ import glob
 import torch
 import torch.nn.functional as F
 
-from utils.data.eval_loader import create_eval_loaders
+from utils.data.load_data import create_eval_loaders
 from utils.model.VarNet import VarNet
 from utils.model.FIVarNet import FIVarNet
 from utils.learning.mask_classifier import MRIClassifier
