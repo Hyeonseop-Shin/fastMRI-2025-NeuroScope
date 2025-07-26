@@ -8,14 +8,17 @@ cmd_file_path = os.path.join(root_path, "train.sh")
 
 # Training hyperparameters
 batch = 1
+start_epoch = 0
 epoch = 5
 accumulation_step = 2
+criterion = 'AnatomicalSSIM'
+retrain = False
 
 # Model hyperparameters
 model = 'fivarnet'
 feature_cascades = 8
 image_cascades = 2
-attention_stride = 3
+attention_stride = 0
 chans = 32
 sen_chans = 8
 
@@ -31,11 +34,11 @@ num_folds = 5
 data_root = "/root/Data"
 data_path_train = os.path.join(data_root, "train/")
 data_path_val = os.path.join(data_root, "val/")
-data_augmentation = True
+data_augmentation = False
 
 # Scheduler hyperparameters
-scheduler = "cosine"    
-lr = 3e-4            
+scheduler = "cosine"
+lr = 3e-4 
 lr_min1 = 0.00005       
 lr_max2 = 0.00015      
 lr_min2 = 0.0         
@@ -51,8 +54,11 @@ model_name = f"{model}_f{feature_cascades}_i{image_cascades}_attn{attention_stri
 
 instruction_template = f"{python_path} -u {train_path} \
 -b {batch} \
+--start-epoch {start_epoch} \
 -e {epoch} \
 --accumulation-step {accumulation_step} \
+--criterion {criterion} \
+--retrain {retrain} \
 --model {model} \
 -f {feature_cascades} \
 -i {image_cascades} \

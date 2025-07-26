@@ -15,7 +15,7 @@ import torch.nn as nn
 
 from utils.data.load_data import create_data_loaders
 from utils.common.utils import ssim_loss
-from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss
+from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss, AnatomicalSSIMLoss, AnatomicalSSIM_L1_Loss, IndexBasedAnatomicalSSIMLoss, IndexBasedAnatomicalSSIM_L1_Loss
 from utils.model.VarNet import VarNet
 from utils.model.FIVarNet import FIVarNet
 from utils.learning.Scheduler import ConstantScheduler, CosineScheduler, WarmupCosineScheduler, DoubleWarmupCosineScheduler
@@ -73,7 +73,7 @@ def train_epoch(model, epoch, train_loader, optimizer, criterion, scaler, fold, 
     optimizer.zero_grad()
 
     for iter, data in enumerate(train_loader):
-        mask, kspace, target, maximum, _, _ = data
+        mask, kspace, target, maximum, fnames, slices = data
         mask = mask.cuda(non_blocking=True)
         kspace = kspace.cuda(non_blocking=True)
         target = target.cuda(non_blocking=True)
@@ -83,7 +83,15 @@ def train_epoch(model, epoch, train_loader, optimizer, criterion, scaler, fold, 
             output = model(kspace, mask, is_training=True)
             data_range = maximum
 
-            loss = criterion(output, target, data_range) 
+            # Check if criterion supports index-based weighting
+            if hasattr(criterion, 'forward') and 'slice_indices' in criterion.forward.__code__.co_varnames:
+                # For index-based loss functions, we need to estimate num_slices
+                # This is a simplified approach - in practice you might want to pass this as metadata
+                estimated_num_slices = 30  # Typical number of slices for brain/knee MRI
+                loss = criterion(output, target, data_range, slice_indices=slices, num_slices=estimated_num_slices)
+            else:
+                # Standard loss functions
+                loss = criterion(output, target, data_range) 
             loss = loss / accumulation_step
 
 
@@ -98,7 +106,7 @@ def train_epoch(model, epoch, train_loader, optimizer, criterion, scaler, fold, 
 
         total_loss += loss.item() * accumulation_step
         if (iter + 1) % args.report_interval == 0:
-            log_template = f'Epoch = [{epoch + 1:3d}/{args.num_epochs:3d}]  ' + \
+            log_template = f'Epoch = [{epoch + 1:3d}/{args.start_epoch + args.num_epochs:3d}]  ' + \
                 (f'Fold = [{fold + 1:2d}/{args.num_folds:2d}]  ' if args.k_fold else '') + \
                 f'Iter = [{iter + 1:4d}/{len_loader:4d}]  ' + \
                 f'Loss = {loss.item() * accumulation_step:.5f}  ' + \

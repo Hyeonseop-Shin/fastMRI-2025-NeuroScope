@@ -9,7 +9,7 @@ from torch import Tensor
 from torch import optim
 
 from utils.data.load_data import create_data_loaders
-from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss
+from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss, AnatomicalSSIMLoss, AnatomicalSSIM_L1_Loss, IndexBasedAnatomicalSSIMLoss, IndexBasedAnatomicalSSIM_L1_Loss
 from utils.model.VarNet import VarNet
 from utils.model.FIVarNet import FIVarNet
 
@@ -68,11 +68,27 @@ class FastMRI:
         return optimizer
     
 
-    def _select_criterion(self):
+    def _select_criterion(self, anatomy_type=None):
         if self.args.criterion == 'SSIM':
             criterion = SSIMLoss()
         elif self.args.criterion == 'SSIM_L1':
-            criterion = SSIM_L1_Loss()  
+            criterion = SSIM_L1_Loss()
+        elif self.args.criterion == 'AnatomicalSSIM':
+            if anatomy_type is None:
+                raise ValueError("anatomy_type must be specified for AnatomicalSSIM loss")
+            criterion = AnatomicalSSIMLoss(anatomy_type=anatomy_type)
+        elif self.args.criterion == 'AnatomicalSSIM_L1':
+            if anatomy_type is None:
+                raise ValueError("anatomy_type must be specified for AnatomicalSSIM_L1 loss")
+            criterion = AnatomicalSSIM_L1_Loss(anatomy_type=anatomy_type)
+        elif self.args.criterion == 'IndexBasedAnatomicalSSIM':
+            if anatomy_type is None:
+                raise ValueError("anatomy_type must be specified for IndexBasedAnatomicalSSIM loss")
+            criterion = IndexBasedAnatomicalSSIMLoss(anatomy_type=anatomy_type)
+        elif self.args.criterion == 'IndexBasedAnatomicalSSIM_L1':
+            if anatomy_type is None:
+                raise ValueError("anatomy_type must be specified for IndexBasedAnatomicalSSIM_L1 loss")
+            criterion = IndexBasedAnatomicalSSIM_L1_Loss(anatomy_type=anatomy_type)
         else:
             raise NotImplementedError(f"Invalid loss type: {self.args.criterion}")
         return criterion
@@ -128,6 +144,10 @@ class FastMRI:
         print(f"Model: {self.args.net_name}")
         print(str(self.model))
 
+    def retrain_model(self, class_label):
+        ckpt_file = f"{self.args.net_name}_{class_label}/checkpoints/best_model.pt"
+        ckpt_path = self.args.result_path / ckpt_file
+        self.load_model(ckpt_path=ckpt_path)
 
     def reset_model(self, retrain=False, class_label="all"):
 
@@ -164,13 +184,14 @@ class FastMRI:
     def load_model(self, ckpt_path):
         checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=False)
         self.model.load_state_dict(checkpoint['model'])
+        print("Model loaded")
 
 
-    def log_val_loss(self, val_loss_log: np.ndarray, epoch: int, val_loss: float):
+    def log_val_loss(self, val_loss_log: np.ndarray, epoch: int, val_loss: float, val_loss_dir):
         val_loss_log = np.append(val_loss_log, np.array([[epoch, val_loss]]), axis=0)
-        os.makedirs(self.args.val_loss_dir, exist_ok=True)
+        os.makedirs(val_loss_dir, exist_ok=True)
         
-        val_log_path = os.path.join(self.args.val_loss_dir, "val_loss_log.npy")
+        val_log_path = os.path.join(val_loss_dir, "val_loss_log.npy")
         np.save(val_log_path, val_loss_log)
         
         return val_loss_log
@@ -179,12 +200,15 @@ class FastMRI:
     def train_single_class(self, class_label, index_file=None, exp_dir="./checkpoint", val_loss_dir="./"):
         print(f"\n=============== Training for class: {class_label} ===============")
 
+        # Extract anatomy type from class_label (e.g., "acc4-brain" -> "brain")
+        # anatomy_type = class_label.split('-')[-1] if '-' in class_label else None
+
         best_val_loss = 1.
         val_loss_log = np.empty((0, 2))
         start_epoch = self.args.start_epoch
         last_epoch = start_epoch + self.args.num_epochs
 
-        criterion = self._select_criterion().to(self.device)
+        criterion = self._select_criterion(anatomy_type=self.args.anatomy).to(self.device)
         optimizer = self._select_optimizer()
         scheduler = self._select_scheduler(optimizer=optimizer)
         scaler = self._select_scaler()
@@ -196,7 +220,7 @@ class FastMRI:
 
             # K-Fold cross-validation
             for val_fold in range(fold_num):
-                scheduler.adjust_lr(epoch*fold_num + val_fold)
+                scheduler.adjust_lr((epoch - start_epoch)*fold_num + val_fold)
 
                 print(f"Fold {val_fold + 1}/{fold_num} for class {class_label}")
                 train_loader, val_loader = next(create_data_loaders(
@@ -220,8 +244,7 @@ class FastMRI:
                 train_loss = torch.tensor(train_loss).cuda(non_blocking=True)
                 
                 val_loss, num_subjects, _, _, val_time = validate(self.model, val_loader)
-                val_loss_log = self.log_val_loss(val_loss_log, epoch, val_loss)
-                val_loss = torch.tensor(val_loss).cuda(non_blocking=True)
+                val_loss_log = self.log_val_loss(val_loss_log, epoch, val_loss, val_loss_dir)
                 val_loss = val_loss / num_subjects
                 
                 is_new_best = val_loss < best_val_loss
@@ -229,7 +252,7 @@ class FastMRI:
 
                 self.save_model(model_name=model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=optimizer, fold=val_fold, is_best=is_new_best)
                 print(
-                    f'Epoch = [{epoch + 1:3d}/{self.args.num_epochs:3d}]   '
+                    f'Epoch = [{epoch + 1:3d}/{last_epoch:3d}]   '
                     f'TrainLoss = {train_loss:.4g}   '
                     f'ValLoss = {val_loss:.4g}   '
                     f'TrainTime = {train_time:.4f}s   '
@@ -283,6 +306,7 @@ class FastMRI:
                                                                   class_label=class_label,
                                                                   result_path=self.args.result_path)
             self.args.acc = acc
+            self.args.anatomy = anatomy
             self.reset_model(retrain=self.args.retrain, class_label=class_label)  # Reset model parameters before training each class
             self.train_single_class(class_label=class_label, 
                                     index_file=index_file,

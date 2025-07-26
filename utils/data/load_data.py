@@ -6,6 +6,7 @@ from tqdm import tqdm
 from typing import List, Tuple, Optional, Union, Iterator
 import logging
 
+from utils.data.subsample import EquispacedMaskFunc
 from utils.data.transforms import DataTransform
 from torch.utils.data import Dataset, DataLoader
 
@@ -30,6 +31,8 @@ class DatasetConfig:
         self.use_moe = args.use_moe
         self.num_folds = args.num_folds
         self.k_fold = args.k_fold
+        self.acc = args.acc
+        self.anatomy = args.anatomy
 
 
 class SliceData(Dataset):
@@ -42,13 +45,16 @@ class SliceData(Dataset):
                  transform=None, 
                  input_key: str = DEFAULT_KSPACE_KEY, 
                  target_key: str = DEFAULT_TARGET_KEY, 
-                 forward: bool = False):
+                 forward: bool = False,
+                 acc: int = 4,
+                 anatomy: str = 'brain'):
         self.kspace_root = Path(kspace_root)
         self.image_root = Path(image_root) if image_root and not forward else None
         self.transform = transform
         self.input_key = input_key
         self.target_key = target_key
         self.forward = forward
+        self.mask_generator = EquispacedMaskFunc(center_fractions=[0.8], accelerations=[acc])
         
         self.examples: List[Tuple[str, int]] = []
         self._build_examples(file_list)
@@ -108,6 +114,7 @@ class SliceData(Dataset):
         # Load kspace data
         try:
             input_data, mask = self._load_kspace_data(input_path=input_path, slice_ind=slice_ind)
+            mask = self.mask_generator(shape=input_data.shape)
         except Exception as e:
             logger.error(f"Error loading kspace data from {input_path}, slice {slice_ind}: {e}")
             raise
@@ -182,7 +189,8 @@ def _create_dataset(kspace_root: Path,
         transform=DataTransform(config.isforward, config.max_key, augmentation=augmentation),
         input_key=config.input_key,
         target_key=config.target_key,
-        forward=config.isforward
+        forward=config.isforward,
+        acc=config.acc
     )
 
 

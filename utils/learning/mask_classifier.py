@@ -86,6 +86,12 @@ def classify_and_index(train_path, val_path, output_base, brain_width_range=(390
     # Step 2: Group by class and save index files
     df = pd.DataFrame(records)
     class_groups = df.groupby('class')['path'].apply(list).to_dict()
+
+    # Step 3: Merge acceleration
+    class_groups['acc4-brain'] = class_groups['acc4-brain'] + class_groups['acc8-brain']
+    class_groups['acc8-brain'] = class_groups['acc4-brain']
+    class_groups['acc4-knee'] = class_groups['acc4-knee'] + class_groups['acc8-knee']
+    class_groups['acc8-knee'] = class_groups['acc4-knee']
     
     os.makedirs(output_base, exist_ok=True)
     index_files = []

@@ -34,7 +34,10 @@ def parse():
     parser.add_argument('-e', '--num-epochs', type=int, default=5, help='Number of epochs')
     parser.add_argument('-n', '--net-name', type=Path, default='fivarnet', help='Name of network')
     parser.add_argument('--optimizer', type=str, default='AdamW', choices=['Adam', 'AdamW'], help='Optimizer')
-    parser.add_argument('--criterion', type=str, default='SSIM', choices=['SSIM', 'SSIM_L1'], help='criterion')
+    parser.add_argument('--criterion', type=str, default='SSIM', 
+                        choices=['SSIM', 'SSIM_L1', 'AnatomicalSSIM', 'AnatomicalSSIM_L1', 
+                                'IndexBasedAnatomicalSSIM', 'IndexBasedAnatomicalSSIM_L1'], 
+                        help='Loss function')
     parser.add_argument('--accumulation-step', type=int, default=1, help='Gradient accumulation steps')
     parser.add_argument('--retrain', type=str2bool, default=False, help="retrain from trained model")
 
