@@ -105,10 +105,10 @@ def train_epoch(model, epoch, train_loader, optimizer, criterion, scaler, fold, 
             optimizer.zero_grad()
 
         total_loss += loss.item() * accumulation_step
-        if (iter + 1) % args.report_interval == 0:
+        if (iter) % args.report_interval == 0:
             log_template = f'Epoch = [{epoch + 1:3d}/{args.start_epoch + args.num_epochs:3d}]  ' + \
-                (f'Fold = [{fold + 1:2d}/{args.num_folds:2d}]  ' if args.k_fold else '') + \
-                f'Iter = [{iter + 1:4d}/{len_loader:4d}]  ' + \
+                (f'Fold = [{fold:2d}/{args.num_folds:2d}]  ' if args.k_fold else '') + \
+                f'Iter = [{iter:4d}/{len_loader:4d}]  ' + \
                 f'Loss = {loss.item() * accumulation_step:.5f}  ' + \
                 f'Time = {time.perf_counter() - start_iter:.4f}s'
             print(log_template)

@@ -216,13 +216,13 @@ class FastMRI:
         model_name = f"{self.args.net_name}_{class_label}"
         fold_num = self.args.num_folds if self.args.k_fold else 1
         for epoch in range(start_epoch, last_epoch):
-            print(f'Epoch #{epoch+1:3d} =============== {model_name} ===============')
+            print(f'Epoch #{epoch:3d} =============== {model_name} ===============')
 
             # K-Fold cross-validation
             for val_fold in range(fold_num):
                 scheduler.adjust_lr((epoch - start_epoch)*fold_num + val_fold)
 
-                print(f"Fold {val_fold + 1}/{fold_num} for class {class_label}")
+                print(f"Fold {val_fold}/{fold_num} for class {class_label}")
                 train_loader, val_loader = next(create_data_loaders(
                     train_data_path=self.args.data_path_train,
                     val_data_path=self.args.data_path_val,
@@ -252,7 +252,7 @@ class FastMRI:
 
                 self.save_model(model_name=model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=optimizer, fold=val_fold, is_best=is_new_best)
                 print(
-                    f'Epoch = [{epoch + 1:3d}/{last_epoch:3d}]   '
+                    f'Epoch = [{epoch:3d}/{last_epoch:3d}]   '
                     f'TrainLoss = {train_loss:.4g}   '
                     f'ValLoss = {val_loss:.4g}   '
                     f'TrainTime = {train_time:.4f}s   '
