@@ -15,7 +15,7 @@ def test(args, model, data_loader):
         for (mask, kspace, _, _, fnames, slices) in data_loader:
             kspace = kspace.cuda(non_blocking=True)
             mask = mask.cuda(non_blocking=True)
-            output = model(kspace, mask, is_training=False)
+            output = model(kspace, mask, use_grad_ckpt=False)
 
             for i in range(output.shape[0]):
                 reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()
