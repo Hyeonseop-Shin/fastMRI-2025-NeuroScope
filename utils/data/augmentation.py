@@ -130,6 +130,8 @@ def spatial_augmentation(
 
     if np.random.random() < rotate_prop:
         angle = np.random.uniform(rotate_range[0], rotate_range[1])
+        if np.random.random() < 0.5:
+            angle = -angle
         kspace = rotate_kspace(kspace, angle=angle)
         image = rotate_image(image, angle)
     
