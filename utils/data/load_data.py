@@ -54,7 +54,9 @@ class SliceData(Dataset):
         self.input_key = input_key
         self.target_key = target_key
         self.forward = forward
-        self.mask_generator = EquispacedMaskFunc(center_fractions=[0.8], accelerations=[acc])
+
+        center_fractions = [0.08] if acc == 4 else [0.04]
+        self.mask_generator = EquispacedMaskFunc(center_fractions=center_fractions, accelerations=[acc])
         
         self.examples: List[Tuple[str, int]] = []
         self._build_examples(file_list)
