@@ -1,8 +1,8 @@
 import os
 
-root_path = "/root/fastMRI-2025-NeuroScope"
+root_path = "/root/fastMRI/fastMRI-2025-NeuroScope"
 
-python_path = "/root/anaconda3/envs/mri/bin/python"
+python_path = "/venv/mri/bin/python"
 train_path = os.path.join(root_path, "train.py")
 cmd_file_path = os.path.join(root_path, "train.sh")
 
@@ -31,7 +31,7 @@ k_fold = True
 num_folds = 5
 
 # Data hyperparameters
-data_root = "/root/Data"
+data_root = "/root/fastMRI/datasets"
 data_path_train = os.path.join(data_root, "train/")
 data_path_val = os.path.join(data_root, "val/")
 data_augmentation = False

@@ -263,10 +263,10 @@ class FastMRI:
     def class_split(self):
         output_base = self.args.class_split_path
         class_groups = {
+            (8, "brain"): f"{output_base}/acc8-brain.txt",
+            (8, "knee"): f"{output_base}/acc8-knee.txt",
             (4, "brain"): f"{output_base}/acc4-brain.txt",
             (4, "knee"): f"{output_base}/acc4-knee.txt", 
-            (8, "brain"): f"{output_base}/acc8-brain.txt",
-            (8, "knee"): f"{output_base}/acc8-knee.txt"
         }
         
         need_classification = not all(os.path.exists(file) for file in class_groups.values())

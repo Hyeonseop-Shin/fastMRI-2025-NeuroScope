@@ -129,12 +129,12 @@ class FIVarNet(nn.Module):
         mask: Tensor,
         num_low_frequencies: Optional[int] = None,
         crop_size: Optional[Tuple[int, int]] = None,
-        is_training: bool=True
+        use_grad_ckpt: bool=True
     ) -> Tensor:
         masked_kspace = masked_kspace * self.kspace_mult_factor
 
-        def apply_ckpt(fn, *args, is_training=True, **kwargs):
-            if is_training:
+        def apply_ckpt(fn, *args, use_grad_ckpt=True, **kwargs):
+            if use_grad_ckpt:
                 if kwargs:
                     fn = partial(fn, **kwargs)
                 return checkpoint(fn, *args, use_reentrant=False)
@@ -147,20 +147,21 @@ class FIVarNet(nn.Module):
             mask,
             crop_size,
             num_low_frequencies,
-            is_training=is_training
+            use_grad_ckpt=use_grad_ckpt
         )
 
         for cascade in self.feature_cascades:
             feature_image = apply_ckpt(
                 cascade,
                 feature_image,
-                is_training=is_training
+                use_grad_ckpt=use_grad_ckpt
+                # use_grad_ckpt=False
             )
 
         kspace_pred = apply_ckpt(
             self._decode_output,
             feature_image,
-            is_training=is_training
+            use_grad_ckpt=use_grad_ckpt
         )
 
         for cascade in self.image_cascades:
@@ -170,7 +171,8 @@ class FIVarNet(nn.Module):
                 feature_image.ref_kspace,
                 mask,
                 feature_image.sens_maps,
-                is_training=is_training
+                use_grad_ckpt=use_grad_ckpt
+                # use_grad_ckpt=False
             )
 
         kspace_pred = (

@@ -39,7 +39,7 @@ def validate(model, val_loader):
             if target_is_valid:
                 target = target.cuda(non_blocking=True)
             
-            output = model(kspace, mask, is_training=False)
+            output = model(kspace, mask, use_grad_ckpt=False)
 
             for i in range(output.shape[0]):
                 reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()
@@ -80,7 +80,7 @@ def train_epoch(model, epoch, train_loader, optimizer, criterion, scaler, fold, 
         maximum = maximum.cuda(non_blocking=True)
 
         with torch.amp.autocast(device_type='cuda', dtype=torch.float32):
-            output = model(kspace, mask, is_training=True)
+            output = model(kspace, mask, use_grad_ckpt=True)
             data_range = maximum
 
             # Check if criterion supports index-based weighting
