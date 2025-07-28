@@ -29,20 +29,26 @@ def get_parser():
     parser.add_argument('-key', '--output_key', type=str, default='reconstruction')
 
     # Data paths
-    parser.add_argument('--leaderboard_path', type=Path, default='/root/Data/leaderboard/', help='Path to leaderboard data')
-    parser.add_argument('--forward_dir', type=Path, default='/root/fastMRI-2025-NeuroScope/reconstructions_leaderboard', help='Directory for saving reconstructions')
+    parser.add_argument('--leaderboard_path', type=Path, default='/root/fastMRI/datasets/leaderboard/', help='Path to leaderboard data')
+    parser.add_argument('--forward_dir', type=Path, default='/root/fastMRI/fastMRI-2025-NeuroScope/reconstructions_leaderboard', help='Directory for saving reconstructions')
     
     # Model checkpoints
-    parser.add_argument('--model', type=str, default='fivarnet', help='Model type to evaluate')
-    parser.add_argument('--brain_acc4_ckpt', type=Path, default='/root/fastMRI-2025-NeuroScope/results/fivarnet_f8_i2_c32_s8_epoch5_fold5_seed2025_acc4-brain/checkpoints/best_model.pt', help='Checkpoint for brain acc4 model')
-    parser.add_argument('--brain_acc8_ckpt', type=Path, default='../result/eval_mri/checkpoints/brain_acc8.pth', help='Checkpoint for brain acc8 model')
-    parser.add_argument('--knee_acc4_ckpt', type=Path, default='../result/eval_mri/checkpoints/knee_acc4.pth', help='Checkpoint for knee acc4 model')
-    parser.add_argument('--knee_acc8_ckpt', type=Path, default='../result/eval_mri/checkpoints/knee_acc8.pth', help='Checkpoint for knee acc8 model')
+    parser.add_argument('--model', type=str, default='fivarnet', choices=['varnet', 'fivarnet'], help='Model type to evaluate')
+    parser.add_argument('--result_path', type=Path, default='/root/fastMRI/fastMRI-2025-NeuroScope/results',
+                        help='result path')
+    parser.add_argument('--brain_acc4_ckpt', type=Path, 
+                        default='fivarnet_f8_i2_attn0_augmentation_c32_s8_epoch4_fold5_seed2025_acc4-brain/checkpoints/best_model.pt', help='Checkpoint for brain acc4 model')
+    parser.add_argument('--brain_acc8_ckpt', type=Path, 
+                        default='fivarnet_f8_i2_attn0_augmentation_c32_s8_epoch4_fold5_seed2025_acc8-brain/checkpoints/best_model.pt', help='Checkpoint for brain acc8 model')
+    parser.add_argument('--knee_acc4_ckpt', type=Path, 
+                        default='fivarnet_f8_i2_attn0_augmentation_c32_s8_epoch4_fold5_seed2025_acc4-knee/checkpoints/best_model.pt', help='Checkpoint for knee acc4 model')
+    parser.add_argument('--knee_acc8_ckpt', type=Path, 
+                        default='fivarnet_f8_i2_attn0_augmentation_c32_s8_epoch4_fold5_seed2025_acc8-knee/checkpoints/best_model.pt', help='Checkpoint for knee acc8 model')
 
     # model hyperparameter
     parser.add_argument('-f', '--feature_cascades', type=int, default=8, help='Number of cascades | Should be less than 12')
     parser.add_argument('-i', '--image_cascades', type=int, default=2, help='Number of cascades | Should be less than 12')
-    parser.add_argument('-a', '--use_attention', type=str2bool, default=False, choices=[True, False], help='Applying block-wise attention for feature processor')
+    parser.add_argument('-a', '--attn_stride', type=int, default=0, help='Applying block-wise attention for feature processor')
     parser.add_argument('--chans', type=int, default=32, help='Number of channels for cascade U-Net | 18 in original varnet')
     parser.add_argument('--sens-chans', type=int, default=8, help='Number of channels for sensitivity map U-Net | 8 in original varnet')
 
@@ -57,4 +63,4 @@ if __name__ == "__main__":
 
     task = EvalMRI(args)
     # task.shit(data_path=Path("/root/Data/leaderboard/acc4/"), recon_anatomy='brain')
-    task.partial_eval(acc=4, anatomy='brain')
+    task.partial_eval(acc=8, anatomy='brain')

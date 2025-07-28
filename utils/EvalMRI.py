@@ -121,10 +121,10 @@ class EvalMRI:
 
         self.current_model = None
         self.ckpt_path = {
-            'brain-acc4': args.brain_acc4_ckpt,
-            'brain-acc8': args.brain_acc8_ckpt,
-            'knee-acc4': args.knee_acc4_ckpt,
-            'knee-acc8': args.knee_acc8_ckpt
+            'brain-acc4': args.result_path / args.brain_acc4_ckpt,
+            'brain-acc8': args.result_path / args.brain_acc8_ckpt,
+            'knee-acc4': args.result_path / args.knee_acc4_ckpt,
+            'knee-acc8': args.result_path / args.knee_acc8_ckpt
         }
 
 
@@ -148,7 +148,7 @@ class EvalMRI:
         elif model_name == 'fivarnet':
             model = FIVarNet(num_feature_cascades=args.feature_cascades,
                              num_image_cascades=args.image_cascades,
-                             use_attn=args.use_attention,
+                             attn_stride=args.attn_stride,
                              chans=args.chans,
                              sens_chans=args.sens_chans)
         else:
@@ -191,7 +191,7 @@ class EvalMRI:
                     self.load_model(model_type)
                     print(f"Loaded model: {model_type}")
 
-                output = self.model(kspace, mask, is_training=False)
+                output = self.model(kspace, mask, use_grad_ckpt=False)
 
                 for i in range(output.shape[0]):
                     reconstructions[fnames[i]][int(slices[i])] = output[i].cpu().numpy()
