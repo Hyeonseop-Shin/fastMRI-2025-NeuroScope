@@ -9,10 +9,13 @@ cmd_file_path = os.path.join(root_path, "train.sh")
 # Training hyperparameters
 batch = 1
 start_epoch = 0
-epoch = 5
+epoch = 4
+# start_epoch = 4
+# epoch = 2
 accumulation_step = 2
 criterion = 'AnatomicalSSIM'
 retrain = False
+retrain_epoch = 4
 
 # Model hyperparameters
 model = 'fivarnet'
@@ -34,11 +37,13 @@ num_folds = 5
 data_root = "/root/fastMRI/datasets"
 data_path_train = os.path.join(data_root, "train/")
 data_path_val = os.path.join(data_root, "val/")
-data_augmentation = False
+data_augmentation = True
 
 # Scheduler hyperparameters
+# scheduler = "constant"
 scheduler = "cosine"
-lr = 3e-4 
+lr = 3e-4
+# lr = 3e-5
 lr_min1 = 0.00005       
 lr_max2 = 0.00015      
 lr_min2 = 0.0         
@@ -59,6 +64,7 @@ instruction_template = f"{python_path} -u {train_path} \
 --accumulation-step {accumulation_step} \
 --criterion {criterion} \
 --retrain {retrain} \
+--retrain-epoch {retrain_epoch} \
 --model {model} \
 -f {feature_cascades} \
 -i {image_cascades} \
@@ -91,6 +97,8 @@ with open(cmd_file_path, 'w') as f:
     f.write(instruction_template)
 
 
-log_path = "/root/fastMRI-2025-NeuroScope/logs"
+log_path = "/root/fastMRI/fastMRI-2025-NeuroScope/logs"
+log_path = os.path.join(root_path, "logs")
+os.makedirs(log_path, exist_ok=True)
 log_file_path = os.path.join(log_path, f"{model_name}.log")
 print(f"nohup {instruction_template}> {log_file_path} 2>&1 &")

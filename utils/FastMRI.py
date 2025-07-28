@@ -152,7 +152,9 @@ class FastMRI:
     def reset_model(self, retrain=False, class_label="all"):
 
         if retrain:
-            ckpt_file = f"{self.args.net_name}_{class_label}/checkpoints/best_model.pt"
+            net_name = str(self.args.net_name)
+            net_name = net_name.replace(f"epoch{self.args.num_epochs}", f"epoch{self.args.retrain_epoch}")
+            ckpt_file = f"{net_name}_{class_label}/checkpoints/best_model.pt"
             ckpt_path = self.args.result_path / ckpt_file
             self.load_model(ckpt_path=ckpt_path)
 
@@ -200,8 +202,6 @@ class FastMRI:
     def train_single_class(self, class_label, index_file=None, exp_dir="./checkpoint", val_loss_dir="./"):
         print(f"\n=============== Training for class: {class_label} ===============")
 
-        # Extract anatomy type from class_label (e.g., "acc4-brain" -> "brain")
-        # anatomy_type = class_label.split('-')[-1] if '-' in class_label else None
 
         best_val_loss = 1.
         val_loss_log = np.empty((0, 2))
@@ -263,10 +263,10 @@ class FastMRI:
     def class_split(self):
         output_base = self.args.class_split_path
         class_groups = {
-            (8, "brain"): f"{output_base}/acc8-brain.txt",
             (8, "knee"): f"{output_base}/acc8-knee.txt",
-            (4, "brain"): f"{output_base}/acc4-brain.txt",
             (4, "knee"): f"{output_base}/acc4-knee.txt", 
+            (4, "brain"): f"{output_base}/acc4-brain.txt",
+            (8, "brain"): f"{output_base}/acc8-brain.txt",
         }
         
         need_classification = not all(os.path.exists(file) for file in class_groups.values())
