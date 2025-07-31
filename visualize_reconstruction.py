@@ -17,6 +17,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
+import cv2
 from pathlib import Path
 from typing import Tuple, Dict, Any
 
@@ -26,6 +27,52 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'utils'))
 from utils.model.FIVarNet import FIVarNet
 from utils.model.VarNet import VarNet
 from utils.data.transforms import DataTransform
+from utils.common.loss_function import SSIMLoss
+
+
+class AnatomicalSSIM:
+    """Anatomical SSIM calculator matching evaluation strategy"""
+    
+    def __init__(self, win_size: int = 7, k1: float = 0.01, k2: float = 0.03):
+        self.win_size = win_size
+        self.k1 = k1
+        self.k2 = k2
+    
+    def calculate_ssim(self, prediction, target, anatomy_type, device):
+        """Calculate anatomical SSIM matching eval.py implementation"""
+        # Create SSIM calculator on the correct device
+        ssim_calculator = SSIMLoss(win_size=self.win_size, k1=self.k1, k2=self.k2).to(device)
+        
+        # Create anatomical mask
+        mask = np.zeros(target.shape)
+        if anatomy_type == 'knee':
+            mask[target > 2e-5] = 1
+        elif anatomy_type == 'brain':
+            mask[target > 5e-5] = 1
+        
+        # Apply morphological operations (matching eval.py)
+        kernel = np.ones((3, 3), np.uint8)
+        mask = cv2.erode(mask, kernel, iterations=1)
+        mask = cv2.dilate(mask, kernel, iterations=15)
+        mask = cv2.erode(mask, kernel, iterations=14)
+        
+        # Convert to tensors
+        target_tensor = torch.from_numpy(target).to(device)
+        prediction_tensor = torch.from_numpy(prediction).to(device)
+        mask_tensor = torch.from_numpy(mask).to(device).type(torch.float)
+        
+        # Apply mask
+        target_masked = target_tensor * mask_tensor
+        prediction_masked = prediction_tensor * mask_tensor
+        
+        # Calculate data range on masked target
+        data_range = target_masked.max()
+        
+        # Calculate SSIM (return actual SSIM, not loss)
+        ssim_loss = ssim_calculator(prediction_masked.unsqueeze(0), target_masked.unsqueeze(0), data_range.unsqueeze(0))
+        ssim_value = 1 - ssim_loss.item()  # Convert loss back to SSIM
+        
+        return ssim_value, mask  # Return both SSIM and mask
 
 
 class ModelConfig:
@@ -125,20 +172,24 @@ class DataLoader:
     """Handles data loading and preprocessing"""
     
     @staticmethod
-    def get_data_paths():
-        """Get validation data paths"""
-        return "/root/fastMRI/datasets/val/kspace", "/root/fastMRI/datasets/val/image"
+    def get_data_paths(config: ModelConfig):
+        """Get leaderboard data paths based on acceleration"""
+        acc_dir = f"acc{config['acc']}"
+        base_path = f"/root/fastMRI/datasets/leaderboard/{acc_dir}"
+        return f"{base_path}/kspace", f"{base_path}/image"
     
     @staticmethod
     def load_sample(kspace_path: str, image_path: str, image_index: int, config: ModelConfig):
-        """Load a sample from the validation dataset"""
-        # Get filtered files based on anatomy and acceleration
+        """Load a sample from the leaderboard dataset"""
+        # Get filtered files based on anatomy
         kspace_files = sorted([f for f in os.listdir(kspace_path) if f.endswith('.h5')])
         
-        filtered_files = [f for f in kspace_files 
-                         if f"acc{config['acc']}" in f and config['anatomy'] in f]
+        # Filter by anatomy (brain_test or knee_test)
+        anatomy_prefix = f"{config['anatomy']}_test"
+        filtered_files = [f for f in kspace_files if anatomy_prefix in f]
         
         if not filtered_files:
+            # Fallback to all files if filtering fails
             filtered_files = kspace_files
         
         if image_index >= len(filtered_files):
@@ -221,26 +272,71 @@ class Visualizer:
         return str(output_dir / filename)
     
     @staticmethod
-    def create_comparison(reconstruction, target, filename, slice_idx, output_path):
-        """Create and save comparison visualization"""
+    def create_comparison(reconstruction, target, filename, slice_idx, output_path, anatomy_type, device):
+        """Create and save comparison visualization with Anatomical SSIM and mask overlay"""
         # Normalize images
         recon_norm = Visualizer.normalize_image(reconstruction)
         target_norm = Visualizer.normalize_image(target)
         diff = np.abs(recon_norm - target_norm)
         
+        # Calculate Anatomical SSIM and get mask
+        ssim_calculator = AnatomicalSSIM()
+        ssim_result = ssim_calculator.calculate_ssim(reconstruction, target, anatomy_type, device)
+        
+        # Handle both old and new return formats
+        if isinstance(ssim_result, tuple):
+            ssim_value, anatomical_mask = ssim_result
+        else:
+            ssim_value = ssim_result
+            # Create mask manually if not returned
+            anatomical_mask = np.zeros(target.shape)
+            if anatomy_type == 'knee':
+                anatomical_mask[target > 2e-5] = 1
+            elif anatomy_type == 'brain':
+                anatomical_mask[target > 5e-5] = 1
+            
+            # Apply morphological operations
+            kernel = np.ones((3, 3), np.uint8)
+            anatomical_mask = cv2.erode(anatomical_mask, kernel, iterations=1)
+            anatomical_mask = cv2.dilate(anatomical_mask, kernel, iterations=15)
+            anatomical_mask = cv2.erode(anatomical_mask, kernel, iterations=14)
+        
+        # Find contours of the anatomical mask
+        contour_result = cv2.findContours((anatomical_mask * 255).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if len(contour_result) == 3:  # Older OpenCV versions
+            _, contours, _ = contour_result
+        else:  # Newer OpenCV versions
+            contours, _ = contour_result
+        
         # Create figure
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
         
-        # Reconstruction
+        # Reconstruction with SSIM value and anatomical area outline
         im1 = axes[0].imshow(recon_norm, cmap='gray', vmin=0, vmax=1)
-        axes[0].set_title(f'Reconstruction\n{filename} - Slice {slice_idx}')
+        axes[0].set_title(f'Reconstruction\n{filename} - Slice {slice_idx}\nAnatomical SSIM: {ssim_value:.4f}')
         axes[0].axis('off')
+        
+        # Add yellow contour lines to reconstruction
+        for contour in contours:
+            if len(contour) > 2:  # Only draw if contour has enough points
+                contour_points = contour.squeeze()
+                if len(contour_points.shape) == 2:  # Valid contour
+                    axes[0].plot(contour_points[:, 0], contour_points[:, 1], 'yellow', linewidth=1.5, alpha=0.8)
+        
         plt.colorbar(im1, ax=axes[0], fraction=0.046, pad=0.04)
         
-        # Ground truth
+        # Ground truth with anatomical area outline
         im2 = axes[1].imshow(target_norm, cmap='gray', vmin=0, vmax=1)
         axes[1].set_title('Ground Truth')
         axes[1].axis('off')
+        
+        # Add yellow contour lines to ground truth
+        for contour in contours:
+            if len(contour) > 2:  # Only draw if contour has enough points
+                contour_points = contour.squeeze()
+                if len(contour_points.shape) == 2:  # Valid contour
+                    axes[1].plot(contour_points[:, 0], contour_points[:, 1], 'yellow', linewidth=1.5, alpha=0.8)
+        
         plt.colorbar(im2, ax=axes[1], fraction=0.046, pad=0.04)
         
         # Difference
@@ -251,7 +347,7 @@ class Visualizer:
         
         plt.tight_layout()
         plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        print(f"Visualization saved to: {output_path}")
+        print(f"Visualization saved to: {output_path} (Anatomical SSIM: {ssim_value:.4f})")
         plt.close()
 
 
@@ -289,8 +385,9 @@ def main():
         print(f"Model configuration: {config}")
         
         # Load sample data
-        kspace_path, image_path = DataLoader.get_data_paths()
+        kspace_path, image_path = DataLoader.get_data_paths(config)
         print(f"Loading image index: {args.image_index}")
+        print(f"Using leaderboard data from: {kspace_path}")
         
         kspace, target, mask, attrs, filename = DataLoader.load_sample(
             kspace_path, image_path, args.image_index, config
@@ -322,7 +419,7 @@ def main():
         # Generate output path and visualize
         output_path = Visualizer.get_output_path(args.checkpoint, args.image_index, slice_idx)
         print("Creating visualization...")
-        Visualizer.create_comparison(reconstruction, target_slice, filename, slice_idx, output_path)
+        Visualizer.create_comparison(reconstruction, target_slice, filename, slice_idx, output_path, config['anatomy'], device)
         
     except Exception as e:
         print(f"Error: {e}")
