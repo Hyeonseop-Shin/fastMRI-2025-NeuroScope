@@ -1,0 +1,7 @@
+results
+logs
+reconstructions_leaderboard
+**/__pycache__
+*.sh
+*.log
+visual
