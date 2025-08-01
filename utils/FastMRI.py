@@ -25,6 +25,7 @@ class FastMRI:
         self.device = self._get_device(args)
         self.model = self._build_model(args).to(self.device)
         self.mri_classifier = self._select_MRI_classifier()
+        self.optimizer = self._select_optimizer()
 
 
     def _get_device(self, args):
@@ -154,9 +155,10 @@ class FastMRI:
         if retrain:
             net_name = str(self.args.net_name)
             net_name = net_name.replace(f"epoch{self.args.num_epochs}", f"epoch{self.args.retrain_epoch}")
-            ckpt_file = f"{net_name}_{class_label}/checkpoints/best_model.pt"
+            ckpt_file = f"{net_name}_{class_label}/checkpoints/last_model.pt"
             ckpt_path = self.args.result_path / ckpt_file
             self.load_model(ckpt_path=ckpt_path)
+            self.load_optimizer(ckpt_path=ckpt_path)
 
         else:   # from_scratch
             if hasattr(self, "model"):
@@ -165,7 +167,6 @@ class FastMRI:
 
             self.model = self._build_model(self.args).to(self.device)
             self.optimizer = self._select_optimizer()
-            self.scheduler = self._select_scheduler(self.optimizer)
 
 
     def save_model(self, model_name, exp_dir, epoch, val_loss, optimizer, fold, is_best=False):
@@ -178,6 +179,8 @@ class FastMRI:
             },
             f=exp_dir / save_name
         )
+        shutil.copyfile(exp_dir / save_name,
+                        exp_dir / "last_model.pt")
         if is_best:
             shutil.copyfile(exp_dir / save_name,
                             exp_dir / "best_model.pt")
@@ -187,6 +190,11 @@ class FastMRI:
         checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=False)
         self.model.load_state_dict(checkpoint['model'])
         print("Model loaded")
+
+    def load_optimizer(self, ckpt_path):
+        checkpoint = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        self.optimizer.load_state_dict(checkpoint['optimizer'])
+        print("Optimizer loaded")
 
 
     def log_val_loss(self, val_loss_log: np.ndarray, epoch: int, val_loss: float, val_loss_dir):
@@ -209,8 +217,7 @@ class FastMRI:
         last_epoch = start_epoch + self.args.num_epochs
 
         criterion = self._select_criterion(anatomy_type=self.args.anatomy).to(self.device)
-        optimizer = self._select_optimizer()
-        scheduler = self._select_scheduler(optimizer=optimizer)
+        scheduler = self._select_scheduler(optimizer=self.optimizer)
         scaler = self._select_scaler()
 
         model_name = f"{self.args.net_name}_{class_label}"
@@ -236,7 +243,7 @@ class FastMRI:
                 train_loss, train_time = train_epoch(model=self.model,
                                                      epoch=epoch,
                                                      train_loader=train_loader, 
-                                                     optimizer=optimizer, 
+                                                     optimizer=self.optimizer, 
                                                      criterion=criterion, 
                                                      scaler=scaler,
                                                      fold=val_fold,
@@ -250,7 +257,7 @@ class FastMRI:
                 is_new_best = val_loss < best_val_loss
                 best_val_loss = min(best_val_loss, val_loss)
 
-                self.save_model(model_name=model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=optimizer, fold=val_fold, is_best=is_new_best)
+                self.save_model(model_name=model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=self.optimizer, fold=val_fold, is_best=is_new_best)
                 print(
                     f'Epoch = [{epoch:3d}/{last_epoch:3d}]   '
                     f'TrainLoss = {train_loss:.4g}   '
@@ -300,6 +307,10 @@ class FastMRI:
         class_groups = self.class_split() if self.args.use_moe else {"all": None}
 
         for (acc, anatomy), index_file in class_groups.items():
+            if self.args.acc_only != 0 and self.args.acc_only != acc:
+                continue
+            if self.args.anatomy_only != 'all' and self.args.anatomy_only != anatomy:
+                continue
             class_label = f"acc{acc}-{anatomy}"
             
             exp_dir, val_loss_dir = self.set_class_directory_path(net_name=self.args.net_name, 

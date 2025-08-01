@@ -128,25 +128,64 @@ def spatial_augmentation(
         shift_prop=0.4, shift_range=(3, 8),
     ) -> Tuple[np.ndarray, np.ndarray]:
 
-    if np.random.random() < rotate_prop:
-        angle = np.random.uniform(rotate_range[0], rotate_range[1])
-        if np.random.random() < 0.5:
-            angle = -angle
-        kspace = rotate_kspace(kspace, angle=angle)
-        image = rotate_image(image, angle)
+    # if np.random.random() < rotate_prop:
+    #     angle = np.random.uniform(rotate_range[0], rotate_range[1])
+    #     if np.random.random() < 0.5:
+    #         angle = -angle
+    #     kspace = rotate_kspace(kspace, angle=angle)
+    #     image = rotate_image(image, angle)
     
-    if np.random.random() < scale_prop:
-        scale_factor = tuple(np.random.uniform(scale_range[0], scale_range[1], 2))
-        kspace = scale_kspace(kspace, scale_factor)
-        image = scale_image(image, scale_factor)
+    # if np.random.random() < scale_prop:
+    #     scale_factor = tuple(np.random.uniform(scale_range[0], scale_range[1], 2))
+    #     kspace = scale_kspace(kspace, scale_factor)
+    #     image = scale_image(image, scale_factor)
 
-    if np.random.random() < shift_prop:
-        shift_step = tuple(np.random.randint(shift_range[0], shift_range[1], 2))
-        kspace = shift_kspace(kspace, shift_step)
-        image = shift_image(image, shift_step)
+    # if np.random.random() < shift_prop:
+    #     shift_step = tuple(np.random.randint(shift_range[0], shift_range[1], 2))
+    #     kspace = shift_kspace(kspace, shift_step)
+    #     image = shift_image(image, shift_step)
 
     if np.random.random() < flip_prop:
         kspace = flip_kspace(kspace)
         image = flip_image(image)
     
     return kspace, image
+
+
+if __name__ == "__main__":
+    kspace_path = "/root/fastMRI/datasets/train/kspace/brain_acc4_1.h5"
+    img_path = "/root/fastMRI/datasets/train/image/brain_acc4_1.h5"
+
+    import h5py
+    import numpy
+
+    with h5py.File(kspace_path, 'r') as f:
+        kspace = np.array(f['kspace'][:])
+    with h5py.File(img_path, 'r') as f:
+        img = np.array(f['image_label'][:])
+        attrs = dict(f.attrs)
+
+    print(kspace.shape)
+    print(img.shape)
+
+    print(np.min(kspace.real), np.max(kspace.real))
+    print(np.min(kspace.imag), np.max(kspace.imag))
+    print(np.max(img))
+
+    print(np.mean(kspace))
+    print(np.mean(img))
+
+    kspace = flip_kspace(kspace)
+    img = flip_image(img)
+
+    print(kspace.shape)
+    print(img.shape)
+
+    print(np.min(kspace.real), np.max(kspace.real))
+    print(np.min(kspace.imag), np.max(kspace.imag))
+    print(np.max(img))
+
+    print(np.mean(kspace))
+    print(np.mean(img))
+
+    print(attrs)

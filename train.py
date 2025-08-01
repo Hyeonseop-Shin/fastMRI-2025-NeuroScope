@@ -41,6 +41,8 @@ def parse():
     parser.add_argument('--accumulation-step', type=int, default=1, help='Gradient accumulation steps')
     parser.add_argument('--retrain', type=str2bool, default=False, help="retrain from trained model")
     parser.add_argument('--retrain-epoch', type=int, default=0, help='checkpoint epoch for retraining')
+    parser.add_argument('--anatomy-only', type=str, default='all', choices=['all', 'brain', 'knee'], help="Train that anatomy only")
+    parser.add_argument('--acc-only', type=int, default=0, choices=[0,4,8], help="Train that acc only")
 
     # scheduler hyperparameter
     parser.add_argument('--scheduler', type=str, default='cosine', choices=['cosine', 'constant', 'warmup_cosine', 'double_warmup_cosine'], help='LR scheduler type')

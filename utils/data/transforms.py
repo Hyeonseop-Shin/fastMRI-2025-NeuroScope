@@ -19,9 +19,9 @@ class DataTransform:
         
         self.aug_params = {
             'flip_prop': 0.5, 
-            'rotate_prop': 0.3, 
+            'rotate_prop': 0.0, 
             'rotate_range': (3, 8),
-            'scale_prop': 0.3, 
+            'scale_prop': 0.0, 
             'scale_range': (0.95, 1.05),
             'shift_prop': 0.0, 
             'shift_range': (3, 8)

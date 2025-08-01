@@ -37,13 +37,13 @@ def get_parser():
     parser.add_argument('--result_path', type=Path, default='/root/fastMRI/fastMRI-2025-NeuroScope/results',
                         help='result path')
     parser.add_argument('--brain_acc4_ckpt', type=Path, 
-                        default='fivarnet_f8_i2_attn0_augmentation_c32_s8_epoch4_fold5_seed2025_acc4-brain/checkpoints/best_model.pt', help='Checkpoint for brain acc4 model')
-    parser.add_argument('--brain_acc8_ckpt', type=Path, 
-                        default='fivarnet_f8_i2_attn0_augmentation_c32_s8_epoch4_fold5_seed2025_acc8-brain/checkpoints/best_model.pt', help='Checkpoint for brain acc8 model')
+                        default='fivarnet_f8_i2_attn0_c32_s8_epoch5_fold5_seed2025_acc4-brain/checkpoints/last_model.pt', help='Checkpoint for brain acc4 model')
     parser.add_argument('--knee_acc4_ckpt', type=Path, 
-                        default='fivarnet_f8_i2_attn0_augmentation_c32_s8_epoch4_fold5_seed2025_acc4-knee/checkpoints/best_model.pt', help='Checkpoint for knee acc4 model')
+                        default='fivarnet_f8_i2_attn0_c32_s8_epoch2_fold5_seed2025_acc4-knee/checkpoints/best_model.pt', help='Checkpoint for knee acc4 model')
+    parser.add_argument('--brain_acc8_ckpt', type=Path, 
+                        default='fivarnet_f8_i2_attn0_c32_s8_epoch5_fold5_seed2025_acc8-brain/checkpoints/last_model.pt', help='Checkpoint for brain acc8 model')
     parser.add_argument('--knee_acc8_ckpt', type=Path, 
-                        default='fivarnet_f8_i2_attn0_augmentation_c32_s8_epoch4_fold5_seed2025_acc8-knee/checkpoints/best_model.pt', help='Checkpoint for knee acc8 model')
+                        default='fivarnet_f8_i2_attn0_c32_s8_epoch2_fold5_seed2025_acc8-knee/checkpoints/best_model.pt', help='Checkpoint for knee acc8 model')
 
     # model hyperparameter
     parser.add_argument('-f', '--feature_cascades', type=int, default=8, help='Number of cascades | Should be less than 12')
@@ -63,4 +63,11 @@ if __name__ == "__main__":
 
     task = EvalMRI(args)
     # task.shit(data_path=Path("/root/Data/leaderboard/acc4/"), recon_anatomy='brain')
-    task.partial_eval(acc=8, anatomy='brain')
+    # task.partial_eval(acc=4, anatomy='knee')
+    # task.partial_eval(acc=8, anatomy='knee')
+    # # task.evaluate()
+    task.leaderboard_eval()
+    task.partial_lb_eval(acc=4, anatomy='brain')
+    task.partial_lb_eval(acc=4, anatomy='knee')
+    task.partial_lb_eval(acc=8, anatomy='brain')
+    task.partial_lb_eval(acc=8, anatomy='knee')
