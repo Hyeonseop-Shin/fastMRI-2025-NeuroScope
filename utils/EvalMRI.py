@@ -120,12 +120,64 @@ class EvalMRI:
         self.mri_classifier = self._select_MRI_classifier()
 
         self.current_model = None
-        self.ckpt_path = {
-            'brain-acc4': args.result_path / args.brain_acc4_ckpt,
-            'brain-acc8': args.result_path / args.brain_acc8_ckpt,
-            'knee-acc4': args.result_path / args.knee_acc4_ckpt,
-            'knee-acc8': args.result_path / args.knee_acc8_ckpt
-        }
+        self.brain_slice = args.brain_slice
+        self.knee_slice = args.knee_slice
+
+        architecture_part = f"{args.model}_f{args.feature_cascades}_i{args.image_cascades}_attn{args.attn_stride}_c{args.chans}_s{args.sens_chans}"
+        architecture_part += '_' if len(args.special_name) else ''
+        architecture_part += args.special_name
+
+
+        ckpt_path = dict()
+        for slice_num in range(args.brain_slice):
+            for acc in [4,8]:
+                brain_key = f"acc{acc}-brain-slice{slice_num}"
+                ckpt_path[brain_key] = os.path.join(args.result_path,
+                                                    architecture_part,
+                                                    args.brain_ckpt,
+                                                    brain_key,
+                                                    "checkpoints/last_model.pt")
+        for slice_num in range(args.knee_slice):
+            for acc in [4,8]:
+                knee_key = f"acc{acc}-knee-slice{slice_num}"
+                ckpt_path[knee_key] = os.path.join(args.result_path,
+                                                   architecture_part,
+                                                   args.brain_ckpt,
+                                                   knee_key,
+                                                   "checkpoints/last_model.pt")
+
+
+
+        # for slice_num in range(args.brain_slice):
+        #     acc4_brain_key = f"acc4-brain-slice{slice_num}"
+        #     ckpt_path[acc4_brain_key] = os.path.join(args.result_path,
+        #                                              architecture_part,
+        #                                              args.brain_acc4_ckpt,
+        #                                              acc4_brain_key,
+        #                                              "checkpoints/last_model.pt")
+        #     acc8_brain_key = f"acc8-brain-slice{slice_num}"
+        #     ckpt_path[acc8_brain_key] = os.path.join(args.result_path,
+        #                                              architecture_part,
+        #                                              args.brain_acc8_ckpt,
+        #                                              acc8_brain_key,
+        #                                              "checkpoints/last_model.pt")
+
+        # for slice_num in range(args.knee_slice):
+        #     acc4_knee_key = f"acc4-knee-slice{slice_num}"
+        #     ckpt_path[acc4_knee_key] = os.path.join(args.result_path,
+        #                                             architecture_part,
+        #                                             args.knee_acc4_ckpt,
+        #                                             acc4_knee_key,
+        #                                             "checkpoints/last_model.pt")
+        #     acc8_knee_key = f"acc8-knee-slice{slice_num}"
+        #     ckpt_path[acc8_knee_key] = os.path.join(args.result_path,
+        #                                             architecture_part,
+        #                                             args.knee_acc8_ckpt,
+        #                                             acc8_knee_key,
+        #                                             "checkpoints/last_model.pt")
+
+
+        self.ckpt_path = ckpt_path
 
 
     def _get_device(self, args):
@@ -178,7 +230,7 @@ class EvalMRI:
                                           anatomy=recon_anatomy)
 
         with torch.no_grad():
-            for (mask, kspace, _, _, fnames, slices) in tqdm(data_loader):
+            for (mask, kspace, _, _, fnames, slices, num_slices) in tqdm(data_loader):
                 kspace = kspace.to(self.device, non_blocking=True)
                 mask = mask.to(self.device, non_blocking=True)
 
@@ -186,7 +238,8 @@ class EvalMRI:
                 anatomy = classification['anatomy']
                 acceleration = classification['acceleration']
                 
-                model_type = f"{anatomy}-{acceleration}"
+                model_slice = int((self.brain_slice if anatomy == 'brain' else self.knee_slice) * slices / num_slices)
+                model_type = f"{acceleration}-{anatomy}-slice{model_slice}"
                 if self.current_model != model_type:
                     self.load_model(model_type)
                     print(f"Loaded model: {model_type}")

@@ -31,18 +31,18 @@ def parse():
     # Training hyperparameter
     parser.add_argument('-b', '--batch-size', type=int, default=1, help='Batch size')
     parser.add_argument('--start-epoch', type=int, default=0, help='Start epoch')
-    parser.add_argument('-e', '--num-epochs', type=int, default=5, help='Number of epochs')
-    parser.add_argument('-n', '--net-name', type=Path, default='fivarnet', help='Name of network')
+    parser.add_argument('-e', '--num-epochs', type=int, default=2, help='Number of epochs')
+    parser.add_argument('-n', '--net-name', type=str, default='fivarnet_f8_i2_attn0_c32_s8__epoch2_fold5_slice3', help='Name of network')
     parser.add_argument('--optimizer', type=str, default='AdamW', choices=['Adam', 'AdamW'], help='Optimizer')
-    parser.add_argument('--criterion', type=str, default='SSIM', 
+    parser.add_argument('--criterion', type=str, default='AnatomicalSSIM', 
                         choices=['SSIM', 'SSIM_L1', 'AnatomicalSSIM', 'AnatomicalSSIM_L1', 
                                 'IndexBasedAnatomicalSSIM', 'IndexBasedAnatomicalSSIM_L1'], 
                         help='Loss function')
     parser.add_argument('--accumulation-step', type=int, default=1, help='Gradient accumulation steps')
-    parser.add_argument('--retrain', type=str2bool, default=False, help="retrain from trained model")
-    parser.add_argument('--retrain-epoch', type=int, default=0, help='checkpoint epoch for retraining')
-    parser.add_argument('--anatomy-only', type=str, default='all', choices=['all', 'brain', 'knee'], help="Train that anatomy only")
-    parser.add_argument('--acc-only', type=int, default=0, choices=[0,4,8], help="Train that acc only")
+    parser.add_argument('--retrain', type=str2bool, default=True, help="retrain from trained model")
+    parser.add_argument('--retrain-epoch', type=int, default=5, help='checkpoint epoch for retraining')
+    parser.add_argument('--anatomy-only', type=str, default='knee', choices=['all', 'brain', 'knee'], help="Train that anatomy only")
+    parser.add_argument('--acc-only', type=int, default=4, choices=[0,4,8], help="Train that acc only")
 
     # scheduler hyperparameter
     parser.add_argument('--scheduler', type=str, default='cosine', choices=['cosine', 'constant', 'warmup_cosine', 'double_warmup_cosine'], help='LR scheduler type')
@@ -70,21 +70,21 @@ def parse():
 
     # K-Fold hyperparameter
     parser.add_argument('--k-fold', type=str2bool, default=True, help='Use K-Fold cross-validation')
-    parser.add_argument('--num-folds', type=int, default=10, help='Number of folds for K-Fold cross-validation')
+    parser.add_argument('--num-folds', type=int, default=2, help='Number of folds for K-Fold cross-validation')
 
     # model hyperparameter
     parser.add_argument('-m', '--model', type=str, default='fivarnet', help='Model type')
-    parser.add_argument('-f', '--feature_cascades', type=int, default=3, help='Number of cascades | Should be less than 12')
-    parser.add_argument('-i', '--image_cascades', type=int, default=3, help='Number of cascades | Should be less than 12')
+    parser.add_argument('-f', '--feature_cascades', type=int, default=0, help='Number of cascades | Should be less than 12')
+    parser.add_argument('-i', '--image_cascades', type=int, default=1, help='Number of cascades | Should be less than 12')
     parser.add_argument('-a', '--attention-stride', type=int, default=0, help='Applying block-wise attention for feature processor')
-    parser.add_argument('--chans', type=int, default=32, help='Number of channels for cascade U-Net | 18 in original varnet')
-    parser.add_argument('--sens-chans', type=int, default=8, help='Number of channels for sensitivity map U-Net | 8 in original varnet')
+    parser.add_argument('--chans', type=int, default=1, help='Number of channels for cascade U-Net | 18 in original varnet')
+    parser.add_argument('--sens-chans', type=int, default=1, help='Number of channels for sensitivity map U-Net | 8 in original varnet')
     parser.add_argument('--acc', type=int, default=4, help='Acceleration')
 
     # saving hyperparameter
     parser.add_argument('--result-path', type=Path, default='C://Users/bigse/OneDrive/Desktop/fastMRI-2025-NeuroScope/results', help='Directory of train/val results')
     parser.add_argument('--seed', type=int, default=0, help='Fix random seed')
-    parser.add_argument('--report-interval', type=int, default=10, help='Interval for printing training status')
+    parser.add_argument('--report-interval', type=int, default=50, help='Interval for printing training status')
 
     args = parser.parse_args()
     return args

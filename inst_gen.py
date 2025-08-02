@@ -1,38 +1,42 @@
 import os
 
-root_path = "/root/fastMRI/fastMRI-2025-NeuroScope"
+root_path = "C:\\Users\\bigse\\OneDrive\\Desktop\\fastMRI-2025-NeuroScope"
 
-python_path = "/venv/mri/bin/python"
+python_path = "D:/anaconda3/envs/torch251/bin/python"
 train_path = os.path.join(root_path, "train.py")
 cmd_file_path = os.path.join(root_path, "train.sh")
+
+# frequently change
+special_name = ""
+epoch = 5 # 실제로 돌아가는 에폭 수
+retrain = False
+retrain_epoch = 5
+acc_only_list = [4, 8]  # 0 for all acc
+anatomy_only_list = [
+    # 'brain', 
+    'knee',
+    ]
+
 
 # Training hyperparameters
 batch = 1
 accumulation_step = 2
 criterion = "AnatomicalSSIM"
-# criterion = "AnatomicalSSIM_L1"
-epoch = 5 # 실제로 돌아가는 에폭 수
-retrain = False
-retrain_epoch = 5
 start_epoch = retrain_epoch if retrain else 0 # 처음이면 0, retrain이면 retrain_epoch과 똑같이 설정
-acc_only_list = [4, 8]  # 0 for all acc
-anatomy_only_list = [
-    # 'brain', 
-    'knee',
-    # 'all',
-    ]
+# criterion = "AnatomicalSSIM_L1"
 
 
 # Model hyperparameters
 model = 'fivarnet'
 feature_cascades = 8
-image_cascades = 0
+image_cascades = 2
 attention_stride = 0
 chans = 32
 sen_chans = 8
 
 # MoE hyperparameters
 use_moe = True
+slice_moe = 3
 class_split_path = os.path.join(root_path, "class_indices")
 
 # K-Fold hyperparameters
@@ -40,9 +44,9 @@ k_fold = True
 num_folds = 5
 
 # Data hyperparameters
-data_root = "/root/fastMRI/datasets"
-data_path_train = os.path.join(data_root, "train/")
-data_path_val = os.path.join(data_root, "val/")
+data_root = "D://Data"
+data_path_train = os.path.join(data_root, "train")
+data_path_val = os.path.join(data_root, "val")
 data_augmentation = False
 
 # Scheduler hyperparameters
@@ -61,65 +65,77 @@ anneal2 = 40
 # Saving hyperparameters
 seed = 2025
 result_path = os.path.join(root_path, "results")
-# model_name = f"{model}_f{feature_cascades}_i{image_cascades}_attn{attention_stride}{'_augmentation' if data_augmentation else ''}_c{chans}_s{sen_chans}_epoch{epoch}_fold{num_folds}_seed{seed}"
-model_name = f"{model}_f{feature_cascades}_i{image_cascades}_attn{attention_stride}_c{chans}_s{sen_chans}_epoch{epoch}_fold{num_folds}_seed{seed}"
-model_name = f"{model}_f{feature_cascades}_i{image_cascades}_attn{attention_stride}_c{chans}_s{sen_chans}_no_image_cascade"
+architecture_part = f"{model}_f{feature_cascades}_i{image_cascades}_attn{attention_stride}_c{chans}_s{sen_chans}"
+architecture_part += f"{'_' if len(special_name) != 0 else ''}{special_name}"
+scenario_part = f"epoch{epoch}_fold{num_folds}_slice{slice_moe}{'_retrain' if retrain else ''}"
 
-instruction_template = [
-    f"{python_path} -u {train_path} \
-    -g {gpu_num} \
-    --acc-only {acc_only} \
-    --anatomy-only {anatomy_only} \
-    -b {batch} \
-    --start-epoch {start_epoch} \
-    -e {epoch} \
-    --accumulation-step {accumulation_step} \
-    --criterion {criterion} \
-    --retrain {retrain} \
-    --retrain-epoch {retrain_epoch} \
-    --model {model} \
-    -f {feature_cascades} \
-    -i {image_cascades} \
-    -a {attention_stride} \
-    --chans {chans} \
-    --sens-chans {sen_chans} \
-    --use-moe {use_moe} \
-    --class-split-path {class_split_path} \
-    --k-fold {k_fold} \
-    --num-folds {num_folds} \
-    --data-augmentation {data_augmentation} \
-    --data-path-train {data_path_train} \
-    --data-path-val {data_path_val} \
-    --scheduler {scheduler} \
-    -m {model} \
-    --lr {lr} \
-    --lr-min1 {lr_min1} \
-    --lr-max2 {lr_max2} \
-    --lr-min2 {lr_min2} \
-    --warmup1 {warmup1} \
-    --anneal1 {anneal1} \
-    --warmup2 {warmup2} \
-    --anneal2 {anneal2} \
-    --seed {seed} \
-    --result-path {result_path} \
-    -n {model_name} \
-    " 
+model_name = f"{architecture_part}__{scenario_part}"
+
+instruction_template = [[(
+    f"{python_path} -u {train_path} "
+    f"-g {gpu_num} "
+    f"--acc-only {acc_only} "
+    f"--anatomy-only {anatomy_only} "
+    f"-b {batch} "
+    f"--start-epoch {start_epoch} "
+    f"-e {epoch} "
+    f"--accumulation-step {accumulation_step} "
+    f"--criterion {criterion} "
+    f"--retrain {retrain} "
+    f"--retrain-epoch {retrain_epoch} "
+    f"--model {model} "
+    f"-f {feature_cascades} "
+    f"-i {image_cascades} "
+    f"-a {attention_stride} "
+    f"--chans {chans} "
+    f"--sens-chans {sen_chans} "
+    f"--use-moe {use_moe} "
+    f"--slice-moe {slice_moe} "
+    f"--class-split-path {class_split_path} "
+    f"--k-fold {k_fold} "
+    f"--num-folds {num_folds} "
+    f"--data-augmentation {data_augmentation} "
+    f"--data-path-train {data_path_train} "
+    f"--data-path-val {data_path_val} "
+    f"--scheduler {scheduler} "
+    f"-m {model} "
+    f"--lr {lr} "
+    f"--lr-min1 {lr_min1} "
+    f"--lr-max2 {lr_max2} "
+    f"--lr-min2 {lr_min2} "
+    f"--warmup1 {warmup1} "
+    f"--anneal1 {anneal1} "
+    f"--warmup2 {warmup2} "
+    f"--anneal2 {anneal2} "
+    f"--seed {seed} "
+    f"--result-path {result_path} "
+    f"-n {model_name}")
+    for anatomy_only in anatomy_only_list]
     for gpu_num, acc_only in enumerate(acc_only_list)
-    for anatomy_only in anatomy_only_list
     ]
 
 
-with open(cmd_file_path, 'w') as f:
-    for instruction in instruction_template:
-        f.write(f"{instruction}\n")
+architecture_part, scenario_part = model_name.split("__")
 
-log_path = "/root/fastMRI/fastMRI-2025-NeuroScope/logs"
-log_path = os.path.join(root_path, "logs")
-os.makedirs(log_path, exist_ok=True)
+log_path = [[os.path.join(result_path, architecture_part, scenario_part, f"acc{acc}-{anatomy}.log")
+            for anatomy in anatomy_only_list]
+            for acc in acc_only_list]
+
+
+full_instruction = list()
+for acc_inst_list, acc_log_list in zip(instruction_template, log_path):
+    acc_inststruction = "nohup bash -c \" \n"
+    for idx, (anatomy_inst, anatomy_log) in enumerate(zip(acc_inst_list, acc_log_list)):
+        acc_inststruction += f"{anatomy_inst.replace('\\', '/')} > {anatomy_log.replace('\\', '/')} 2>&1"
+        if idx + 1 != len(acc_inst_list):
+            acc_inststruction += '; \\\n'
+        else:
+            acc_inststruction += '\n'
+    acc_inststruction += "\" > /dev/null 2>&1 &\n"
+    full_instruction.append(acc_inststruction)
 
 with open(cmd_file_path, 'w') as f:
-    log_file_path = [os.path.join(log_path, f"{model_name}_acc{acc_only}-{anatomy_only}.log") 
-                     for acc_only in acc_only_list
-                     for anatomy_only in anatomy_only_list]
-    for instruction, log_file in zip(instruction_template, log_file_path):
-        f.write(f"nohup {instruction}> {log_file} 2>&1 &\n")
+    for inst in full_instruction:
+        f.write(inst)
+
+# full_instruction = f"{ins}"

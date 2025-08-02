@@ -1,8 +1,37 @@
 import h5py
-from utils.data.transforms import DataTransform
 from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 import numpy as np
+
+import torch
+
+def to_tensor(data):
+    """Convert numpy array to torch tensor"""
+    if isinstance(data, np.ndarray):
+        return torch.from_numpy(data)
+    elif isinstance(data, torch.Tensor):
+        return data
+    else:
+        return torch.tensor(data)
+
+class DataTransform:
+    def __init__(self, isforward, max_key):
+        self.isforward = isforward
+        self.max_key = max_key
+    
+    def __call__(self, mask, input, target, attrs, fname, slice, num_slices):
+        
+        if self.isforward:
+            target = maximum = -1
+        else:
+            target = to_tensor(target)
+            maximum = attrs[self.max_key]
+    
+        kspace = to_tensor(input * mask)
+        kspace = torch.stack((kspace.real, kspace.imag), dim=-1)
+        mask = torch.from_numpy(mask.reshape(1, 1, kspace.shape[-2], 1).astype(np.float32)).byte()
+        return mask, kspace.float(), target, maximum, fname, slice, num_slices
+
 
 class SliceData(Dataset):
     def __init__(self, root, transform, input_key, target_key, forward=False, anatomy='all'):
@@ -30,7 +59,7 @@ class SliceData(Dataset):
             num_slices = self._get_metadata(fname)
 
             self.kspace_examples += [
-                (fname, slice_ind) for slice_ind in range(num_slices)
+                (fname, slice_ind, num_slices) for slice_ind in range(num_slices)
             ]
 
 
@@ -48,7 +77,7 @@ class SliceData(Dataset):
     def __getitem__(self, i):
         if not self.forward:
             image_fname, _ = self.image_examples[i]
-        kspace_fname, dataslice = self.kspace_examples[i]
+        kspace_fname, dataslice, num_slices = self.kspace_examples[i]
         if not self.forward and image_fname.name != kspace_fname.name:
             raise ValueError(f"Image file {image_fname.name} does not match kspace file {kspace_fname.name}")
 
@@ -63,7 +92,7 @@ class SliceData(Dataset):
                 target = hf[self.target_key][dataslice]
                 attrs = dict(hf.attrs)
             
-        return self.transform(mask, input, target, attrs, kspace_fname.name, dataslice)
+        return self.transform(mask, input, target, attrs, kspace_fname.name, dataslice, num_slices)
 
 
 def create_eval_loaders(data_path, args, shuffle=False, isforward=False, anatomy='all'):
@@ -76,7 +105,7 @@ def create_eval_loaders(data_path, args, shuffle=False, isforward=False, anatomy
 
     data_storage = SliceData(
         root=data_path,
-        transform=DataTransform(isforward, max_key_, augmentation=False),
+        transform=DataTransform(isforward, max_key_),
         input_key=args.input_key,
         target_key=target_key_,
         forward = isforward,

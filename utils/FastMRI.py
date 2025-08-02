@@ -145,28 +145,34 @@ class FastMRI:
         print(f"Model: {self.args.net_name}")
         print(str(self.model))
 
-    def retrain_model(self, class_label):
-        ckpt_file = f"{self.args.net_name}_{class_label}/checkpoints/best_model.pt"
+
+    def retrain_model(self, class_label='all'):
+
+        retrain_net_name = self.args.net_name.replace(f"epoch{self.args.num_epochs}", f"epoch{self.args.retrain_epoch}")
+        architecture_part, scenario_part = retrain_net_name.split("__")
+
+        ckpt_file = os.path.join(architecture_part, scenario_part, class_label, "checkpoints/last_model.pt")
         ckpt_path = self.args.result_path / ckpt_file
+
         self.load_model(ckpt_path=ckpt_path)
+        self.load_optimizer(ckpt_path=ckpt_path)
+        
 
-    def reset_model(self, retrain=False, class_label="all"):
+    def reset_model(self, class_label='all'):
 
-        if retrain:
-            net_name = str(self.args.net_name)
-            net_name = net_name.replace(f"epoch{self.args.num_epochs}", f"epoch{self.args.retrain_epoch}")
-            ckpt_file = f"{net_name}_{class_label}/checkpoints/last_model.pt"
-            ckpt_path = self.args.result_path / ckpt_file
-            self.load_model(ckpt_path=ckpt_path)
-            self.load_optimizer(ckpt_path=ckpt_path)
+        if hasattr(self, "model"):
+            del self.model
+            torch.cuda.empty_cache()
 
-        else:   # from_scratch
-            if hasattr(self, "model"):
-                del self.model
-                torch.cuda.empty_cache()
+        self.model = self._build_model(self.args).to(self.device)
+        self.optimizer = self._select_optimizer()
 
-            self.model = self._build_model(self.args).to(self.device)
-            self.optimizer = self._select_optimizer()
+
+    def set_model(self, class_label='all'):
+        if self.args.retrain:
+            self.retrain_model(class_label=class_label)
+        else:
+            self.reset_model(class_label=class_label)
 
 
     def save_model(self, model_name, exp_dir, epoch, val_loss, optimizer, fold, is_best=False):
@@ -225,9 +231,11 @@ class FastMRI:
 
         for slice_moe_num in range(self.args.slice_moe):
             slice_moe_model_name = model_name + f"-slice{slice_moe_num}"
-            self.reset_model(retrain=self.args.retrain, class_label=class_label)
+            slice_class_label = class_label + f"-slice{slice_moe_num}"
+            
+            self.set_model(class_label=slice_class_label)
             exp_dir, val_loss_dir = self.set_class_directory_path(net_name=self.args.net_name, 
-                                                                  class_label=class_label + f"-slice{slice_moe_num}",
+                                                                  class_label=slice_class_label,
                                                                   result_path=self.args.result_path)
 
             for epoch in range(start_epoch, last_epoch):
@@ -259,9 +267,10 @@ class FastMRI:
                                                         args=self.args)
                     train_loss = torch.tensor(train_loss).cuda(non_blocking=True)
                     
-                    val_loss, num_subjects, _, _, val_time = validate(self.model, val_loader)
-                    val_loss_log = self.log_val_loss(val_loss_log, epoch, val_loss, val_loss_dir)
-                    val_loss = val_loss / num_subjects
+                    # val_loss, num_subjects, _, _, val_time = validate(self.model, val_loader)
+                    # val_loss_log = self.log_val_loss(val_loss_log, epoch, val_loss, val_loss_dir)
+                    # val_loss = val_loss / num_subjects
+                    val_loss = 1
                     
                     is_new_best = val_loss < best_val_loss
                     best_val_loss = min(best_val_loss, val_loss)
@@ -272,7 +281,7 @@ class FastMRI:
                         f'TrainLoss = {train_loss:.4g}   '
                         f'ValLoss = {val_loss:.4g}   '
                         f'TrainTime = {train_time:.4f}s   '
-                        f'ValTime = {val_time:.4f}s   '
+                        # f'ValTime = {val_time:.4f}s   '
                     )
     
 
@@ -299,16 +308,20 @@ class FastMRI:
         return class_groups
     
 
-    @staticmethod
-    def set_class_directory_path(net_name, class_label, result_path):
+    def set_class_directory_path(self, net_name, class_label, result_path):
         
-        model_name = f"{net_name}_{class_label}"
-        
-        exp_dir = Path(os.path.join(result_path, model_name, 'checkpoints'))
+        architecture_part, scenario_part = net_name.split("__")
+
+        args_dir = Path(os.path.join(result_path, architecture_part, scenario_part))
+        val_loss_dir = Path(os.path.join(args_dir, class_label))
+        exp_dir = Path(os.path.join(val_loss_dir, 'checkpoints'))
         exp_dir.mkdir(parents=True, exist_ok=True)
         
-        val_loss_dir = Path(os.path.join(result_path, model_name))
+        with open(os.path.join(args_dir, "args.txt"), 'w') as f:
+            for arg, value in vars(self.args).items():
+                f.write(f"{arg}: {value}\n")
         
+        print(f"Set result dir : {exp_dir}")
         return exp_dir, val_loss_dir
 
 
