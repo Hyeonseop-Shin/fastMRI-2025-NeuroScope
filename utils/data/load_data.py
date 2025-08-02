@@ -22,7 +22,9 @@ DEFAULT_MASK_KEY = 'mask'
 class DatasetConfig:
     """Configuration class for dataset parameters"""
     
-    def __init__(self, args, isforward: bool = False):
+    def __init__(self, args, 
+                 isforward: bool = False,
+                 slice_moe_num: int = 0):
         self.isforward = isforward
         self.max_key = args.max_key if not isforward else FORWARD_MODE_PLACEHOLDER
         self.target_key = args.target_key if not isforward else FORWARD_MODE_PLACEHOLDER
@@ -33,6 +35,8 @@ class DatasetConfig:
         self.k_fold = args.k_fold
         self.acc = args.acc
         self.anatomy = args.anatomy
+        self.slice_moe_total = args.slice_moe if args.use_moe else None
+        self.slice_moe_num = slice_moe_num
 
 
 class SliceData(Dataset):
@@ -47,13 +51,17 @@ class SliceData(Dataset):
                  target_key: str = DEFAULT_TARGET_KEY, 
                  forward: bool = False,
                  acc: int = 4,
-                 anatomy: str = 'brain'):
+                 slice_moe_num: int = 0,
+                 slice_moe_total: int = 1):
         self.kspace_root = Path(kspace_root)
         self.image_root = Path(image_root) if image_root and not forward else None
         self.transform = transform
         self.input_key = input_key
         self.target_key = target_key
         self.forward = forward
+
+        self.slice_moe_num = slice_moe_num
+        self.slice_moe_total = slice_moe_total
 
         # center_fractions = [0.08] if acc == 4 else [0.04]
         center_fractions = [0.08]
@@ -101,8 +109,13 @@ class SliceData(Dataset):
                     return
                 
                 num_slices = hf[self.input_key].shape[0]
-                
-            for slice_ind in range(num_slices):
+            
+            start_slice = int(self.slice_moe_num / self.slice_moe_total * num_slices)
+            end_slice = int((self.slice_moe_num + 1) / self.slice_moe_total * num_slices)
+            end_slice = num_slices if end_slice > num_slices else end_slice
+
+            slice_moe_range = range(start_slice, end_slice)
+            for slice_ind in slice_moe_range:
                 self.examples.append((input_path, slice_ind))
                 
         except Exception as e:
@@ -193,7 +206,9 @@ def _create_dataset(kspace_root: Path,
         input_key=config.input_key,
         target_key=config.target_key,
         forward=config.isforward,
-        acc=config.acc
+        acc=config.acc,
+        slice_moe_num=config.slice_moe_num,
+        slice_moe_total=config.slice_moe_total,
     )
 
 
@@ -203,9 +218,10 @@ def create_data_loaders(train_data_path: Union[str, Path],
                         index_file: Optional[str] = None, 
                         shuffle: bool = False, 
                         isforward: bool = False, 
-                        augmentation: bool = False) -> Iterator[Tuple[DataLoader, DataLoader]]:
+                        augmentation: bool = False,
+                        slice_moe_num: int = 0) -> Iterator[Tuple[DataLoader, DataLoader]]:
     """Create standard data loader with k-fold cross-validation"""
-    config = DatasetConfig(args, isforward)
+    config = DatasetConfig(args, isforward, slice_moe_num)
     
     # Set up paths
     train_kspace_root = Path(train_data_path) / "kspace"

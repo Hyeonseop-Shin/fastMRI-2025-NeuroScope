@@ -207,7 +207,7 @@ class FastMRI:
         return val_loss_log
 
 
-    def train_single_class(self, class_label, index_file=None, exp_dir="./checkpoint", val_loss_dir="./"):
+    def train_single_class(self, class_label, index_file=None):
         print(f"\n=============== Training for class: {class_label} ===============")
 
 
@@ -222,58 +222,67 @@ class FastMRI:
 
         model_name = f"{self.args.net_name}_{class_label}"
         fold_num = self.args.num_folds if self.args.k_fold else 1
-        for epoch in range(start_epoch, last_epoch):
-            print(f'Epoch #{epoch:3d} =============== {model_name} ===============')
 
-            # K-Fold cross-validation
-            for val_fold in range(fold_num):
-                scheduler.adjust_lr((epoch - start_epoch)*fold_num + val_fold)
+        for slice_moe_num in range(self.args.slice_moe):
+            slice_moe_model_name = model_name + f"-slice{slice_moe_num}"
+            self.reset_model(retrain=self.args.retrain, class_label=class_label)
+            exp_dir, val_loss_dir = self.set_class_directory_path(net_name=self.args.net_name, 
+                                                                  class_label=class_label + f"-slice{slice_moe_num}",
+                                                                  result_path=self.args.result_path)
 
-                print(f"Fold {val_fold}/{fold_num} for class {class_label}")
-                train_loader, val_loader = next(create_data_loaders(
-                    train_data_path=self.args.data_path_train,
-                    val_data_path=self.args.data_path_val,
-                    args=self.args,
-                    index_file=index_file,
-                    shuffle=True,
-                    isforward=False,
-                    augmentation=self.args.data_augmentation
-                ))
-        
-                train_loss, train_time = train_epoch(model=self.model,
-                                                     epoch=epoch,
-                                                     train_loader=train_loader, 
-                                                     optimizer=self.optimizer, 
-                                                     criterion=criterion, 
-                                                     scaler=scaler,
-                                                     fold=val_fold,
-                                                     args=self.args)
-                train_loss = torch.tensor(train_loss).cuda(non_blocking=True)
-                
-                val_loss, num_subjects, _, _, val_time = validate(self.model, val_loader)
-                val_loss_log = self.log_val_loss(val_loss_log, epoch, val_loss, val_loss_dir)
-                val_loss = val_loss / num_subjects
-                
-                is_new_best = val_loss < best_val_loss
-                best_val_loss = min(best_val_loss, val_loss)
+            for epoch in range(start_epoch, last_epoch):
+                print(f'Epoch #{epoch:3d} =============== {slice_moe_model_name} ===============')
 
-                self.save_model(model_name=model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=self.optimizer, fold=val_fold, is_best=is_new_best)
-                print(
-                    f'Epoch = [{epoch:3d}/{last_epoch:3d}]   '
-                    f'TrainLoss = {train_loss:.4g}   '
-                    f'ValLoss = {val_loss:.4g}   '
-                    f'TrainTime = {train_time:.4f}s   '
-                    f'ValTime = {val_time:.4f}s   '
-                )
+                # K-Fold cross-validation
+                for val_fold in range(fold_num):
+                    scheduler.adjust_lr((epoch - start_epoch)*fold_num + val_fold)
+
+                    print(f"Fold {val_fold}/{fold_num} for class {class_label}")
+                    train_loader, val_loader = next(create_data_loaders(
+                        train_data_path=self.args.data_path_train,
+                        val_data_path=self.args.data_path_val,
+                        args=self.args,
+                        index_file=index_file,
+                        shuffle=True,
+                        isforward=False,
+                        augmentation=self.args.data_augmentation,
+                        slice_moe_num=slice_moe_num,
+                    ))
+            
+                    train_loss, train_time = train_epoch(model=self.model,
+                                                        epoch=epoch,
+                                                        train_loader=train_loader, 
+                                                        optimizer=self.optimizer, 
+                                                        criterion=criterion, 
+                                                        scaler=scaler,
+                                                        fold=val_fold,
+                                                        args=self.args)
+                    train_loss = torch.tensor(train_loss).cuda(non_blocking=True)
+                    
+                    val_loss, num_subjects, _, _, val_time = validate(self.model, val_loader)
+                    val_loss_log = self.log_val_loss(val_loss_log, epoch, val_loss, val_loss_dir)
+                    val_loss = val_loss / num_subjects
+                    
+                    is_new_best = val_loss < best_val_loss
+                    best_val_loss = min(best_val_loss, val_loss)
+
+                    self.save_model(model_name=slice_moe_model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=self.optimizer, fold=val_fold, is_best=is_new_best)
+                    print(
+                        f'Epoch = [{epoch:3d}/{last_epoch:3d}]   '
+                        f'TrainLoss = {train_loss:.4g}   '
+                        f'ValLoss = {val_loss:.4g}   '
+                        f'TrainTime = {train_time:.4f}s   '
+                        f'ValTime = {val_time:.4f}s   '
+                    )
     
 
     def class_split(self):
         output_base = self.args.class_split_path
         class_groups = {
-            (8, "knee"): f"{output_base}/acc8-knee.txt",
-            (4, "knee"): f"{output_base}/acc4-knee.txt", 
             (4, "brain"): f"{output_base}/acc4-brain.txt",
+            (4, "knee"): f"{output_base}/acc4-knee.txt", 
             (8, "brain"): f"{output_base}/acc8-brain.txt",
+            (8, "knee"): f"{output_base}/acc8-knee.txt",
         }
         
         need_classification = not all(os.path.exists(file) for file in class_groups.values())
@@ -286,7 +295,7 @@ class FastMRI:
             print("Classification completed!")
         else:
             print("Found existing classification files! Skipping classification step...")
-        
+
         return class_groups
     
 
@@ -313,16 +322,10 @@ class FastMRI:
                 continue
             class_label = f"acc{acc}-{anatomy}"
             
-            exp_dir, val_loss_dir = self.set_class_directory_path(net_name=self.args.net_name, 
-                                                                  class_label=class_label,
-                                                                  result_path=self.args.result_path)
             self.args.acc = acc
             self.args.anatomy = anatomy
-            self.reset_model(retrain=self.args.retrain, class_label=class_label)  # Reset model parameters before training each class
             self.train_single_class(class_label=class_label, 
-                                    index_file=index_file,
-                                    exp_dir=exp_dir,
-                                    val_loss_dir=val_loss_dir)
+                                    index_file=index_file,)
             
             print(f"Training completed for class: {class_label}")
         

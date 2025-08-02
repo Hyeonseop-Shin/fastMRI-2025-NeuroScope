@@ -65,7 +65,8 @@ def parse():
     
     # MoE hyperparameter
     parser.add_argument('--use-moe', type=str2bool, default=True, help='Use Mixture of Experts training')
-    parser.add_argument('--class-split-path', type=Path, default="D://Data/class_indices", help="Class indicating file location")
+    parser.add_argument('--slice-moe', type=int, default=3, help="Separate the slice region and train matched moe model")
+    parser.add_argument('--class-split-path', type=Path, default="C:\\Users\\bigse\\OneDrive\\Desktop\\fastMRI-2025-NeuroScope\\class_indices", help="Class indicating file location")
 
     # K-Fold hyperparameter
     parser.add_argument('--k-fold', type=str2bool, default=True, help='Use K-Fold cross-validation')
