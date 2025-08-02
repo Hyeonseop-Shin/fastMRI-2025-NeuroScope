@@ -35,7 +35,10 @@ def get_parser():
     # Model checkpoints
     parser.add_argument('--result_path', type=Path, default='/root/fastMRI/fastMRI-2025-NeuroScope/results',
                         help='result path')
-    parser.add_argument('--special_name', type=str, default='')
+    parser.add_argument('--brain_special_name', type=str, default='',
+                        help='Brain model specification')
+    parser.add_argument('--knee_special_name', type=str, default='',
+                        help='Knee model specification')
     parser.add_argument('--brain_slice', type=int, default=1,
                         help='Brain slice moe num')
     parser.add_argument('--knee_slice', type=int, default=3,

@@ -123,17 +123,19 @@ class EvalMRI:
         self.brain_slice = args.brain_slice
         self.knee_slice = args.knee_slice
 
-        architecture_part = f"{args.model}_f{args.feature_cascades}_i{args.image_cascades}_attn{args.attn_stride}_c{args.chans}_s{args.sens_chans}"
-        architecture_part += '_' if len(args.special_name) else ''
-        architecture_part += args.special_name
-
+        brain_arch = knee_arch = f"{args.model}_f{args.feature_cascades}_i{args.image_cascades}_attn{args.attn_stride}_c{args.chans}_s{args.sens_chans}"
+        
+        if len(args.brain_special_name.strip()) > 0:
+            brain_arch = f"_{args.brain_special_name.strip()}"
+        if len(args.knee_special_name.strip()) > 0:
+            knee_arch = f"_{args.knee_special_name.strip()}"
 
         ckpt_path = dict()
         for slice_num in range(args.brain_slice):
             for acc in [4,8]:
                 brain_key = f"acc{acc}-brain-slice{slice_num}"
                 ckpt_path[brain_key] = os.path.join(args.result_path,
-                                                    architecture_part,
+                                                    brain_arch,
                                                     args.brain_ckpt,
                                                     brain_key,
                                                     "checkpoints/last_model.pt")
@@ -141,8 +143,8 @@ class EvalMRI:
             for acc in [4,8]:
                 knee_key = f"acc{acc}-knee-slice{slice_num}"
                 ckpt_path[knee_key] = os.path.join(args.result_path,
-                                                   architecture_part,
-                                                   args.brain_ckpt,
+                                                   knee_arch,
+                                                   args.knee_ckpt,
                                                    knee_key,
                                                    "checkpoints/last_model.pt")
 

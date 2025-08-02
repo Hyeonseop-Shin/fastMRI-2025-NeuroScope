@@ -1,8 +1,7 @@
 import os
 
-root_path = "C:\\Users\\bigse\\OneDrive\\Desktop\\fastMRI-2025-NeuroScope"
-
-python_path = "D:/anaconda3/envs/torch251/bin/python"
+root_path = "/root/fastMRI/fastMRI-2025-NeuroScope"
+python_path = "/venv/mri/bin/python"
 train_path = os.path.join(root_path, "train.py")
 cmd_file_path = os.path.join(root_path, "train.sh")
 
@@ -44,7 +43,7 @@ k_fold = True
 num_folds = 5
 
 # Data hyperparameters
-data_root = "D://Data"
+data_root = "/root/fastMRI/datasets"
 data_path_train = os.path.join(data_root, "train")
 data_path_val = os.path.join(data_root, "val")
 data_augmentation = False
@@ -138,4 +137,3 @@ with open(cmd_file_path, 'w') as f:
     for inst in full_instruction:
         f.write(inst)
 
-# full_instruction = f"{ins}"
