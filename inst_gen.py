@@ -6,20 +6,24 @@ train_path = os.path.join(root_path, "train.py")
 cmd_file_path = os.path.join(root_path, "train.sh")
 
 # frequently change
-special_name = ""
-epoch = 5 # 실제로 돌아가는 에폭 수
-retrain = False
-retrain_epoch = 5
+special_name = "slice_moe"
+epoch = 3 # 실제로 돌아가는 에폭 수
+retrain = True
+retrain_epoch = 2
 acc_only_list = [4, 8]  # 0 for all acc
 anatomy_only_list = [
     # 'brain', 
     'knee',
     ]
+slice_moe = 3
+lr = 5e-4
+scheduler = "constant"
+report_interval = 200
 
 
 # Training hyperparameters
 batch = 1
-accumulation_step = 2
+accumulation_step = 8
 criterion = "AnatomicalSSIM"
 start_epoch = retrain_epoch if retrain else 0 # 처음이면 0, retrain이면 retrain_epoch과 똑같이 설정
 # criterion = "AnatomicalSSIM_L1"
@@ -35,7 +39,6 @@ sen_chans = 8
 
 # MoE hyperparameters
 use_moe = True
-slice_moe = 3
 class_split_path = os.path.join(root_path, "class_indices")
 
 # K-Fold hyperparameters
@@ -50,8 +53,6 @@ data_augmentation = False
 
 # Scheduler hyperparameters
 # scheduler = "constant"
-scheduler = "cosine"
-lr = 3e-4
 # lr = 3e-5
 lr_min1 = 0.00005       
 lr_max2 = 0.00015      
@@ -108,6 +109,7 @@ instruction_template = [[(
     f"--anneal2 {anneal2} "
     f"--seed {seed} "
     f"--result-path {result_path} "
+    f"--report-interval {report_interval} "
     f"-n {model_name}")
     for anatomy_only in anatomy_only_list]
     for gpu_num, acc_only in enumerate(acc_only_list)
@@ -122,8 +124,10 @@ log_path = [[os.path.join(result_path, architecture_part, scenario_part, f"acc{a
 
 
 full_instruction = list()
+result_dir = os.path.join(result_path, architecture_part, scenario_part)
 for acc_inst_list, acc_log_list in zip(instruction_template, log_path):
     acc_inststruction = "nohup bash -c \" \n"
+    acc_inststruction += f"mkdir -p {result_dir}; \\ \n"
     for idx, (anatomy_inst, anatomy_log) in enumerate(zip(acc_inst_list, acc_log_list)):
         acc_inststruction += f"{anatomy_inst.replace('\\', '/')} > {anatomy_log.replace('\\', '/')} 2>&1"
         if idx + 1 != len(acc_inst_list):

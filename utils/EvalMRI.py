@@ -126,9 +126,9 @@ class EvalMRI:
         brain_arch = knee_arch = f"{args.model}_f{args.feature_cascades}_i{args.image_cascades}_attn{args.attn_stride}_c{args.chans}_s{args.sens_chans}"
         
         if len(args.brain_special_name.strip()) > 0:
-            brain_arch = f"_{args.brain_special_name.strip()}"
+            brain_arch += f"_{args.brain_special_name.strip()}"
         if len(args.knee_special_name.strip()) > 0:
-            knee_arch = f"_{args.knee_special_name.strip()}"
+            knee_arch += f"_{args.knee_special_name.strip()}"
 
         ckpt_path = dict()
         for slice_num in range(args.brain_slice):

@@ -35,27 +35,19 @@ def get_parser():
     # Model checkpoints
     parser.add_argument('--result_path', type=Path, default='/root/fastMRI/fastMRI-2025-NeuroScope/results',
                         help='result path')
-    parser.add_argument('--brain_special_name', type=str, default='',
+    parser.add_argument('--brain_special_name', type=str, default='base',
                         help='Brain model specification')
-    parser.add_argument('--knee_special_name', type=str, default='',
+    parser.add_argument('--knee_special_name', type=str, default='base',
                         help='Knee model specification')
     parser.add_argument('--brain_slice', type=int, default=1,
                         help='Brain slice moe num')
-    parser.add_argument('--knee_slice', type=int, default=3,
+    parser.add_argument('--knee_slice', type=int, default=1,
                         help='Knee slice moe num')
     parser.add_argument('--brain_ckpt', type=Path, 
                         default='epoch5_fold5_slice1', help='Checkpoint for brain model')
     parser.add_argument('--knee_ckpt', type=Path, 
-                        default='epoch5_fold5_slice3', help='Checkpoint for knee model')
-    # parser.add_argument('--brain_acc4_ckpt', type=Path, 
-    #                     default='epoch5_fold5_slice1', help='Checkpoint for brain acc4 model')
-    # parser.add_argument('--knee_acc4_ckpt', type=Path, 
-    #                     default='epoch5_fold5_slice3', help='Checkpoint for knee acc4 model')
-    # parser.add_argument('--brain_acc8_ckpt', type=Path, 
-    #                     default='epoch5_fold5_slice1', help='Checkpoint for brain acc8 model')
-    # parser.add_argument('--knee_acc8_ckpt', type=Path, 
-    #                     default='epoch5_fold5_slice3', help='Checkpoint for knee acc8 model')
-
+                        default='epoch5_fold5_slice1', help='Checkpoint for knee model')
+  
     # model hyperparameter
     parser.add_argument('--model', type=str, default='fivarnet', choices=['varnet', 'fivarnet'], help='Model type to evaluate')
     parser.add_argument('-f', '--feature_cascades', type=int, default=8, help='Number of cascades | Should be less than 12')
@@ -74,12 +66,11 @@ if __name__ == "__main__":
 
 
     task = EvalMRI(args)
-    # task.shit(data_path=Path("/root/Data/leaderboard/acc4/"), recon_anatomy='brain')
     # task.partial_eval(acc=4, anatomy='knee')
     # task.partial_eval(acc=8, anatomy='knee')
-    # # task.evaluate()
+    task.evaluate()
     # task.leaderboard_eval()
-    # task.partial_lb_eval(acc=4, anatomy='brain')
-    # task.partial_lb_eval(acc=4, anatomy='knee')
-    # task.partial_lb_eval(acc=8, anatomy='brain')
-    # task.partial_lb_eval(acc=8, anatomy='knee')
+    task.partial_lb_eval(acc=4, anatomy='brain')
+    task.partial_lb_eval(acc=4, anatomy='knee')
+    task.partial_lb_eval(acc=8, anatomy='brain')
+    task.partial_lb_eval(acc=8, anatomy='knee')
