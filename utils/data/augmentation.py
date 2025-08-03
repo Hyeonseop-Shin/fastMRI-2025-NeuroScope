@@ -119,6 +119,77 @@ def rss(kspace: np.ndarray) -> np.ndarray:
     rss_image = np.sqrt(np.sum(np.abs(image_per_coil) ** 2, axis=0))  # shape: [H, W]
     return rss_image
 
+def brightness_contrast_augmentation(
+        image: np.ndarray,
+        anatomy_type: str = 'brain',
+        weight_brightness: float = 0.1,
+        weight_contrast: float = 0.1,
+        brightness_range: Tuple[float, float] = (0.8, 1.2),
+        contrast_range: Tuple[float, float] = (0.8, 1.2)
+    ) -> np.ndarray:
+    """
+    Apply brightness and contrast augmentation ON the anatomical mask area.
+    The mask area gets augmented, but the mask boundaries stay the same.
+    
+    Args:
+        image: Input image array
+        anatomy_type: 'brain' or 'knee' for different mask thresholds
+        weight_brightness: Weight for brightness augmentation (0.0 to 1.0)
+        weight_contrast: Weight for contrast augmentation (0.0 to 1.0)
+        brightness_range: Range for brightness factor
+        contrast_range: Range for contrast factor
+    
+    Returns:
+        Augmented image with brightness/contrast applied to anatomical areas
+    """
+    if weight_brightness == 0.0 and weight_contrast == 0.0:
+        return image
+    
+    # Create anatomical mask (same logic as EvalMRI.py)
+    mask = np.zeros(image.shape)
+    if anatomy_type == 'knee':
+        mask[image > 2e-5] = 1
+    elif anatomy_type == 'brain':
+        mask[image > 5e-5] = 1
+    else:
+        # Default to brain threshold
+        mask[image > 5e-5] = 1
+    
+    # Apply morphological operations (matching EvalMRI.py)
+    import cv2
+    kernel = np.ones((3, 3), np.uint8)
+    mask = cv2.erode(mask, kernel, iterations=1)
+    mask = cv2.dilate(mask, kernel, iterations=15)
+    mask = cv2.erode(mask, kernel, iterations=14)
+    
+    # Start with original image
+    augmented_image = image.copy()
+    
+    # Apply brightness augmentation to the masked area
+    if weight_brightness > 0.0 and np.random.random() < weight_brightness:
+        brightness_factor = np.random.uniform(brightness_range[0], brightness_range[1])
+        # Apply brightness only to the anatomical area
+        masked_area = image * mask
+        brightened_area = masked_area * brightness_factor
+        # Keep non-masked areas unchanged, update masked areas
+        augmented_image = image * (1 - mask) + brightened_area
+    
+    # Apply contrast augmentation to the masked area
+    if weight_contrast > 0.0 and np.random.random() < weight_contrast:
+        contrast_factor = np.random.uniform(contrast_range[0], contrast_range[1])
+        # Apply contrast only to the anatomical area
+        masked_area = augmented_image * mask
+        mean_val = np.mean(masked_area[mask > 0])  # Mean of only the masked region
+        contrasted_area = (masked_area - mean_val * mask) * contrast_factor + mean_val * mask
+        # Keep non-masked areas unchanged, update masked areas
+        augmented_image = augmented_image * (1 - mask) + contrasted_area
+    
+    # Ensure non-negative values
+    augmented_image = np.maximum(augmented_image, 0)
+    
+    return augmented_image
+
+
 def spatial_augmentation(
         kspace: np.ndarray, 
         image: np.ndarray,
@@ -126,6 +197,10 @@ def spatial_augmentation(
         rotate_prop=0.4, rotate_range=(3, 8),
         scale_prop=0.4, scale_range=(0.95, 1.05),
         shift_prop=0.4, shift_range=(3, 8),
+        # New brightness/contrast parameters
+        weight_brightness=0.0, brightness_range=(0.8, 1.2),
+        weight_contrast=0.0, contrast_range=(0.8, 1.2),
+        anatomy_type='brain'
     ) -> Tuple[np.ndarray, np.ndarray]:
 
     # if np.random.random() < rotate_prop:
@@ -144,6 +219,17 @@ def spatial_augmentation(
     #     shift_step = tuple(np.random.randint(shift_range[0], shift_range[1], 2))
     #     kspace = shift_kspace(kspace, shift_step)
     #     image = shift_image(image, shift_step)
+
+    # Apply brightness and contrast augmentation (preserves anatomical mask)
+    if weight_brightness > 0.0 or weight_contrast > 0.0:
+        image = brightness_contrast_augmentation(
+            image, 
+            anatomy_type=anatomy_type,
+            weight_brightness=weight_brightness,
+            weight_contrast=weight_contrast,
+            brightness_range=brightness_range,
+            contrast_range=contrast_range
+        )
 
     if np.random.random() < flip_prop:
         kspace = flip_kspace(kspace)
