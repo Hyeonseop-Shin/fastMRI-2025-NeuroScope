@@ -27,28 +27,28 @@ class DataTransform:
             'shift_prop': 0.0, 
             'shift_range': (3, 8),
             # New brightness/contrast parameters
-            'weight_brightness': 1.0,
+            'brightness_prop': 1.0,
             'brightness_range': (0.5, 2.0),
-            'weight_contrast': 1.0,
+            'contrast_prop': 1.0,
             'contrast_range': (0.5, 2.0),
             'anatomy_type': anatomy_type
         }
     
-    def set_brightness_contrast_augmentation(self, weight_brightness=0.1, weight_contrast=0.1, 
+    def set_brightness_contrast_augmentation(self, brightness_prop=0.1, contrast_prop=0.1, 
                                            brightness_range=(0.8, 1.2), contrast_range=(0.8, 1.2)):
         """
         Configure brightness and contrast augmentation parameters.
         
         Args:
-            weight_brightness: Probability of applying brightness augmentation (0.0 to 1.0)
-            weight_contrast: Probability of applying contrast augmentation (0.0 to 1.0)
+            brightness_prop: Probability of applying brightness augmentation (0.0 to 1.0)
+            contrast_prop: Probability of applying contrast augmentation (0.0 to 1.0)
             brightness_range: Range for brightness factor (e.g., (0.8, 1.2))
             contrast_range: Range for contrast factor (e.g., (0.8, 1.2))
         """
         self.aug_params.update({
-            'weight_brightness': weight_brightness,
+            'brightness_prop': brightness_prop,
             'brightness_range': brightness_range,
-            'weight_contrast': weight_contrast,
+            'contrast_prop': contrast_prop,
             'contrast_range': contrast_range
         })
     

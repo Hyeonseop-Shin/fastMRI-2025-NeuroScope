@@ -122,8 +122,8 @@ def rss(kspace: np.ndarray) -> np.ndarray:
 def brightness_contrast_augmentation(
         image: np.ndarray,
         anatomy_type: str = 'brain',
-        weight_brightness: float = 0.1,
-        weight_contrast: float = 0.1,
+        brightness_prop: float = 0.1,
+        contrast_prop: float = 0.1,
         brightness_range: Tuple[float, float] = (0.8, 1.2),
         contrast_range: Tuple[float, float] = (0.8, 1.2)
     ) -> np.ndarray:
@@ -134,15 +134,15 @@ def brightness_contrast_augmentation(
     Args:
         image: Input image array
         anatomy_type: 'brain' or 'knee' for different mask thresholds
-        weight_brightness: Weight for brightness augmentation (0.0 to 1.0)
-        weight_contrast: Weight for contrast augmentation (0.0 to 1.0)
+        brightness_prop: Probability for brightness augmentation (0.0 to 1.0)
+        contrast_prop: Probability for contrast augmentation (0.0 to 1.0)
         brightness_range: Range for brightness factor
         contrast_range: Range for contrast factor
     
     Returns:
         Augmented image with brightness/contrast applied to anatomical areas
     """
-    if weight_brightness == 0.0 and weight_contrast == 0.0:
+    if brightness_prop == 0.0 and contrast_prop == 0.0:
         return image
     
     # Create anatomical mask (same logic as EvalMRI.py)
@@ -166,7 +166,7 @@ def brightness_contrast_augmentation(
     augmented_image = image.copy()
     
     # Apply brightness augmentation to the masked area
-    if weight_brightness > 0.0 and np.random.random() < weight_brightness:
+    if brightness_prop > 0.0 and np.random.random() < brightness_prop:
         brightness_factor = np.random.uniform(brightness_range[0], brightness_range[1])
         # Apply brightness only to the anatomical area
         masked_area = image * mask
@@ -175,7 +175,7 @@ def brightness_contrast_augmentation(
         augmented_image = image * (1 - mask) + brightened_area
     
     # Apply contrast augmentation to the masked area
-    if weight_contrast > 0.0 and np.random.random() < weight_contrast:
+    if contrast_prop > 0.0 and np.random.random() < contrast_prop:
         contrast_factor = np.random.uniform(contrast_range[0], contrast_range[1])
         # Apply contrast only to the anatomical area
         masked_area = augmented_image * mask
@@ -198,8 +198,8 @@ def spatial_augmentation(
         scale_prop=0.4, scale_range=(0.95, 1.05),
         shift_prop=0.4, shift_range=(3, 8),
         # New brightness/contrast parameters
-        weight_brightness=0.0, brightness_range=(0.8, 1.2),
-        weight_contrast=0.0, contrast_range=(0.8, 1.2),
+        brightness_prop=0.0, brightness_range=(0.8, 1.2),
+        contrast_prop=0.0, contrast_range=(0.8, 1.2),
         anatomy_type='brain'
     ) -> Tuple[np.ndarray, np.ndarray]:
 
@@ -221,12 +221,12 @@ def spatial_augmentation(
     #     image = shift_image(image, shift_step)
 
     # Apply brightness and contrast augmentation (preserves anatomical mask)
-    if weight_brightness > 0.0 or weight_contrast > 0.0:
+    if brightness_prop > 0.0 or contrast_prop > 0.0:
         image = brightness_contrast_augmentation(
             image, 
             anatomy_type=anatomy_type,
-            weight_brightness=weight_brightness,
-            weight_contrast=weight_contrast,
+            brightness_prop=brightness_prop,
+            contrast_prop=contrast_prop,
             brightness_range=brightness_range,
             contrast_range=contrast_range
         )
