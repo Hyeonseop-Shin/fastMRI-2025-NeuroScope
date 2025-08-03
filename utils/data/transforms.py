@@ -31,7 +31,9 @@ class DataTransform:
             'brightness_range': (0.5, 2.0),
             'contrast_prop': 1.0,
             'contrast_range': (0.5, 2.0),
-            'anatomy_type': anatomy_type
+            'anatomy_type': anatomy_type,
+            # New k-space augmentation parameter
+            'enable_kspace_intensity_aug': False
         }
     
     def set_brightness_contrast_augmentation(self, brightness_prop=0.1, contrast_prop=0.1, 
@@ -52,6 +54,23 @@ class DataTransform:
             'contrast_range': contrast_range
         })
     
+    def enable_kspace_intensity_augmentation(self, enable=True):
+        """
+        Enable or disable k-space intensity augmentation.
+        
+        When enabled, brightness/contrast augmentation is applied via:
+        1. K-space (multi-coil) → Image domain (per coil)
+        2. Apply augmentation to each coil's image consistently  
+        3. Image domain → K-space (per coil)
+        4. RSS preserves the augmentation effects
+        
+        This ensures both k-space and target are consistently augmented.
+        
+        Args:
+            enable: Whether to enable k-space intensity augmentation
+        """
+        self.aug_params['enable_kspace_intensity_aug'] = enable
+    
     def __call__(self, mask, input, target, attrs, fname, slice):
         
         if self.augmentation:
@@ -60,8 +79,9 @@ class DataTransform:
         if self.isforward:
             target = maximum = -1
         else:
-            target = to_tensor(target)
+            # maximum = np.max(target)
             maximum = attrs[self.max_key]
+            target = to_tensor(target)
     
         kspace = to_tensor(input * mask)
         kspace = torch.stack((kspace.real, kspace.imag), dim=-1)

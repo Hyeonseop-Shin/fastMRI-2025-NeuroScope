@@ -119,6 +119,94 @@ def rss(kspace: np.ndarray) -> np.ndarray:
     rss_image = np.sqrt(np.sum(np.abs(image_per_coil) ** 2, axis=0))  # shape: [H, W]
     return rss_image
 
+
+def kspace_intensity_augmentation(
+        kspace: np.ndarray,
+        brightness_factor: float = 1.0,
+        contrast_factor: float = 1.0,
+        anatomy_type: str = 'brain'
+    ) -> np.ndarray:
+    """
+    Apply brightness/contrast augmentation to k-space via multi-coil image domain.
+    
+    Idea:
+    1. K-space (multi-coil) → Image domain (per coil)
+    2. Apply brightness/contrast to each coil's image consistently
+    3. Image domain → K-space (per coil)
+    4. RSS preserves the augmentation effects
+    
+    Args:
+        kspace: Multi-coil k-space data, shape [coil, height, width]
+        brightness_factor: Brightness multiplication factor
+        contrast_factor: Contrast multiplication factor
+        anatomy_type: For anatomical mask creation
+    
+    Returns:
+        Augmented k-space with same shape as input
+    """
+    if brightness_factor == 1.0 and contrast_factor == 1.0:
+        return kspace  # No augmentation needed
+    
+    # Step 1: Convert k-space to image domain for each coil
+    coil_images = ifft2c(kspace)  # shape: [coil, H, W], complex values
+    
+    # Step 2: Convert to magnitude images for augmentation
+    coil_magnitudes = np.abs(coil_images)  # shape: [coil, H, W], real values
+    coil_phases = np.angle(coil_images)    # shape: [coil, H, W], preserve phase
+    
+    # Step 3: Create RSS image to get anatomical mask
+    rss_image = np.sqrt(np.sum(coil_magnitudes ** 2, axis=0))  # shape: [H, W]
+    
+    # Step 4: Create anatomical mask (same logic as brightness_contrast_augmentation)
+    mask = np.zeros(rss_image.shape)
+    if anatomy_type == 'knee':
+        mask[rss_image > 2e-5] = 1
+    elif anatomy_type == 'brain':
+        mask[rss_image > 5e-5] = 1
+    else:
+        mask[rss_image > 5e-5] = 1
+    
+    # Apply morphological operations
+    import cv2
+    kernel = np.ones((3, 3), np.uint8)
+    mask = cv2.erode(mask, kernel, iterations=1)
+    mask = cv2.dilate(mask, kernel, iterations=15)
+    mask = cv2.erode(mask, kernel, iterations=14)
+    
+    # Step 5: Apply augmentation to each coil's magnitude consistently
+    augmented_magnitudes = []
+    
+    for coil_idx in range(coil_magnitudes.shape[0]):
+        coil_mag = coil_magnitudes[coil_idx]  # shape: [H, W]
+        
+        # Apply brightness augmentation to anatomical area
+        if brightness_factor != 1.0:
+            masked_area = coil_mag * mask
+            brightened_area = masked_area * brightness_factor
+            coil_mag = coil_mag * (1 - mask) + brightened_area
+        
+        # Apply contrast augmentation to anatomical area
+        if contrast_factor != 1.0:
+            masked_area = coil_mag * mask
+            if mask.sum() > 0:  # Avoid division by zero
+                mean_val = np.mean(masked_area[mask > 0])
+                contrasted_area = (masked_area - mean_val * mask) * contrast_factor + mean_val * mask
+                coil_mag = coil_mag * (1 - mask) + contrasted_area
+        
+        # Ensure non-negative values
+        coil_mag = np.maximum(coil_mag, 0)
+        augmented_magnitudes.append(coil_mag)
+    
+    augmented_magnitudes = np.stack(augmented_magnitudes, axis=0)  # shape: [coil, H, W]
+    
+    # Step 6: Reconstruct complex images with original phases
+    augmented_coil_images = augmented_magnitudes * np.exp(1j * coil_phases)
+    
+    # Step 7: Convert back to k-space
+    augmented_kspace = fft2c(augmented_coil_images)
+    
+    return augmented_kspace
+
 def brightness_contrast_augmentation(
         image: np.ndarray,
         anatomy_type: str = 'brain',
@@ -200,7 +288,9 @@ def spatial_augmentation(
         # New brightness/contrast parameters
         brightness_prop=0.0, brightness_range=(0.8, 1.2),
         contrast_prop=0.0, contrast_range=(0.8, 1.2),
-        anatomy_type='brain'
+        anatomy_type='brain',
+        # New parameter for k-space augmentation
+        enable_kspace_intensity_aug=False
     ) -> Tuple[np.ndarray, np.ndarray]:
 
     # if np.random.random() < rotate_prop:
@@ -220,16 +310,47 @@ def spatial_augmentation(
     #     kspace = shift_kspace(kspace, shift_step)
     #     image = shift_image(image, shift_step)
 
-    # Apply brightness and contrast augmentation (preserves anatomical mask)
+    # Apply brightness and contrast augmentation
     if brightness_prop > 0.0 or contrast_prop > 0.0:
-        image = brightness_contrast_augmentation(
-            image, 
-            anatomy_type=anatomy_type,
-            brightness_prop=brightness_prop,
-            contrast_prop=contrast_prop,
-            brightness_range=brightness_range,
-            contrast_range=contrast_range
-        )
+        if enable_kspace_intensity_aug:
+            # NEW: Idea - augment k-space via multi-coil image domain
+            brightness_factor = 1.0
+            contrast_factor = 1.0
+            
+            if brightness_prop > 0.0 and np.random.random() < brightness_prop:
+                brightness_factor = np.random.uniform(brightness_range[0], brightness_range[1])
+            
+            if contrast_prop > 0.0 and np.random.random() < contrast_prop:
+                contrast_factor = np.random.uniform(contrast_range[0], contrast_range[1])
+            
+            # Apply to k-space (which will also affect the target image consistently)
+            if brightness_factor != 1.0 or contrast_factor != 1.0:
+                kspace = kspace_intensity_augmentation(
+                    kspace,
+                    brightness_factor=brightness_factor,
+                    contrast_factor=contrast_factor,
+                    anatomy_type=anatomy_type
+                )
+                
+                # Also update the target image to match the k-space augmentation
+                image = brightness_contrast_augmentation(
+                    image,
+                    anatomy_type=anatomy_type,
+                    brightness_prop=1.0,  # Force application with same factors
+                    contrast_prop=1.0,
+                    brightness_range=(brightness_factor, brightness_factor),  # Use same factor
+                    contrast_range=(contrast_factor, contrast_factor)
+                )
+        else:
+            # ORIGINAL: Only augment target image (preserves anatomical mask)
+            image = brightness_contrast_augmentation(
+                image, 
+                anatomy_type=anatomy_type,
+                brightness_prop=brightness_prop,
+                contrast_prop=contrast_prop,
+                brightness_range=brightness_range,
+                contrast_range=contrast_range
+            )
 
     if np.random.random() < flip_prop:
         kspace = flip_kspace(kspace)
