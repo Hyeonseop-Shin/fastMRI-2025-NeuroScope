@@ -6,9 +6,9 @@ train_path = os.path.join(root_path, "train.py")
 cmd_file_path = os.path.join(root_path, "train.sh")
 
 # frequently change
-special_name = "slice_moe"
-epoch = 3 # 실제로 돌아가는 에폭 수
-retrain = True
+special_name = ""
+epoch = 5 # 실제로 돌아가는 에폭 수
+retrain = False
 retrain_epoch = 2
 acc_only_list = [4, 8]  # 0 for all acc
 anatomy_only_list = [
@@ -17,14 +17,14 @@ anatomy_only_list = [
     ]
 slice_moe = 3
 lr = 5e-4
-scheduler = "constant"
+scheduler = "cosine"
 report_interval = 200
 
 
 # Training hyperparameters
 batch = 1
 accumulation_step = 8
-criterion = "AnatomicalSSIM"
+criterion = "AreaBasedAnatomicalSSIM"
 start_epoch = retrain_epoch if retrain else 0 # 처음이면 0, retrain이면 retrain_epoch과 똑같이 설정
 # criterion = "AnatomicalSSIM_L1"
 

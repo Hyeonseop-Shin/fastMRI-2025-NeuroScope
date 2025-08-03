@@ -36,7 +36,8 @@ def parse():
     parser.add_argument('--optimizer', type=str, default='AdamW', choices=['Adam', 'AdamW'], help='Optimizer')
     parser.add_argument('--criterion', type=str, default='AnatomicalSSIM', 
                         choices=['SSIM', 'SSIM_L1', 'AnatomicalSSIM', 'AnatomicalSSIM_L1', 
-                                'IndexBasedAnatomicalSSIM', 'IndexBasedAnatomicalSSIM_L1'], 
+                                'IndexBasedAnatomicalSSIM', 'IndexBasedAnatomicalSSIM_L1',
+                                'AreaBasedAnatomicalSSIM', 'AreaBasedAnatomicalSSIM_L1'], 
                         help='Loss function')
     parser.add_argument('--accumulation-step', type=int, default=1, help='Gradient accumulation steps')
     parser.add_argument('--retrain', type=str2bool, default=True, help="retrain from trained model")

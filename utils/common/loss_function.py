@@ -261,12 +261,199 @@ class IndexBasedWeightedLoss(nn.Module):
             return math.cos(slice_idx * math.pi / (num_slices * 2)) ** 2
 
 
+class AreaBasedAnatomicalSSIMLoss(nn.Module):
+    """
+    Area-based weighted Anatomical SSIM loss.
+    
+    Instead of assuming cos^2 distribution, this calculates the actual anatomical
+    area for each slice and weights the loss proportionally to the area size.
+    
+    This is much more precise and adaptive to individual anatomy variations.
+    """
+
+    def __init__(self, win_size: int = 7, k1: float = 0.01, k2: float = 0.03, 
+                 anatomy_type='brain', threshold_brain=5e-5, threshold_knee=2e-5):
+        super().__init__()
+        self.anatomical_ssim = AnatomicalSSIMLoss(
+            win_size=win_size, k1=k1, k2=k2,
+            anatomy_type=anatomy_type,
+            threshold_brain=threshold_brain,
+            threshold_knee=threshold_knee
+        )
+        self.anatomy_type = anatomy_type
+        self.threshold_brain = threshold_brain
+        self.threshold_knee = threshold_knee
+
+    def calculate_anatomical_area(self, target):
+        """
+        Calculate the actual anatomical area for each slice in the batch.
+        
+        Args:
+            target (torch.Tensor): Ground truth target [B, H, W]
+            
+        Returns:
+            torch.Tensor: Anatomical area for each slice [B]
+        """
+        # Create anatomical masks
+        masks = create_anatomical_mask(target, self.anatomy_type, 
+                                     self.threshold_brain, self.threshold_knee)
+        
+        # Calculate area (number of pixels) for each slice
+        batch_size = masks.shape[0]
+        areas = []
+        
+        for i in range(batch_size):
+            area = torch.sum(masks[i])  # Count pixels in anatomical region
+            areas.append(area)
+        
+        return torch.stack(areas)
+
+    def forward(self, prediction, target, data_range, normalize_weights=True):
+        """
+        Forward pass with area-based weighting.
+        
+        Args:
+            prediction (torch.Tensor): Model prediction [B, H, W]
+            target (torch.Tensor): Ground truth target [B, H, W]
+            data_range (torch.Tensor): Data range for normalization [B]
+            normalize_weights (bool): Whether to normalize weights to sum to 1
+            
+        Returns:
+            torch.Tensor: Area-weighted anatomical SSIM loss
+        """
+        batch_size = prediction.shape[0]
+        
+        # Calculate actual anatomical areas for each slice
+        areas = self.calculate_anatomical_area(target)
+        
+        # Convert to weights (area intensity) - pure area-based weighting
+        weights = areas.float()
+        
+        # Normalize weights if requested (so they sum to batch_size)
+        if normalize_weights and torch.sum(weights) > 0:
+            weights = weights / torch.sum(weights) * batch_size
+        
+        # Handle edge case where all areas are zero (keep equal weights)
+        if torch.sum(weights) == 0:
+            weights = torch.ones_like(weights)
+        
+        # Calculate individual losses and apply pure area-based weighting
+        weighted_losses = []
+        
+        for i in range(batch_size):
+            # Compute loss for every slice (even if area=0, weight=0)
+            single_pred = prediction[i:i+1]
+            single_target = target[i:i+1]
+            single_range = data_range[i:i+1]
+            
+            item_loss = self.anatomical_ssim(single_pred, single_target, single_range)
+            weighted_loss = item_loss * weights[i]
+            weighted_losses.append(weighted_loss)
+        
+        # Return mean of area-weighted losses (pure accuracy)
+        return torch.mean(torch.stack(weighted_losses))
+
+
+class AreaBasedAnatomicalSSIM_L1_Loss(nn.Module):
+    """
+    Area-based weighted Anatomical SSIM + L1 loss.
+    
+    Uses actual calculated anatomical areas instead of assumed cos^2 distribution.
+    Much more adaptive and precise for individual anatomy variations.
+    """
+
+    def __init__(self, alpha=0.8, win_size: int = 7, k1: float = 0.01, k2: float = 0.03,
+                 anatomy_type='brain', threshold_brain=5e-5, threshold_knee=2e-5):
+        super().__init__()
+        self.alpha = alpha
+        self.anatomy_type = anatomy_type
+        self.threshold_brain = threshold_brain
+        self.threshold_knee = threshold_knee
+        self.anatomical_ssim_l1 = AnatomicalSSIM_L1_Loss(
+            alpha=alpha, win_size=win_size, k1=k1, k2=k2,
+            anatomy_type=anatomy_type,
+            threshold_brain=threshold_brain,
+            threshold_knee=threshold_knee
+        )
+
+    def calculate_anatomical_area(self, target):
+        """
+        Calculate the actual anatomical area for each slice in the batch.
+        
+        Args:
+            target (torch.Tensor): Ground truth target [B, H, W]
+            
+        Returns:
+            torch.Tensor: Anatomical area for each slice [B]
+        """
+        # Create anatomical masks
+        masks = create_anatomical_mask(target, self.anatomy_type, 
+                                     self.threshold_brain, self.threshold_knee)
+        
+        # Calculate area (number of pixels) for each slice
+        batch_size = masks.shape[0]
+        areas = []
+        
+        for i in range(batch_size):
+            area = torch.sum(masks[i])  # Count pixels in anatomical region
+            areas.append(area)
+        
+        return torch.stack(areas)
+
+    def forward(self, prediction, target, data_range, normalize_weights=True):
+        """
+        Forward pass with area-based weighting.
+        
+        Args:
+            prediction (torch.Tensor): Model prediction [B, H, W]
+            target (torch.Tensor): Ground truth target [B, H, W]
+            data_range (torch.Tensor): Data range for normalization [B]
+            normalize_weights (bool): Whether to normalize weights to sum to 1
+            
+        Returns:
+            torch.Tensor: Area-weighted anatomical SSIM+L1 loss
+        """
+        batch_size = prediction.shape[0]
+        
+        # Calculate actual anatomical areas for each slice
+        areas = self.calculate_anatomical_area(target)
+        
+        # Convert to weights (area intensity) - pure area-based weighting
+        weights = areas.float()
+        
+        # Normalize weights if requested (so they sum to batch_size)
+        if normalize_weights and torch.sum(weights) > 0:
+            weights = weights / torch.sum(weights) * batch_size
+        
+        # Handle edge case where all areas are zero (keep equal weights)
+        if torch.sum(weights) == 0:
+            weights = torch.ones_like(weights)
+        
+        # Calculate individual losses and apply pure area-based weighting
+        weighted_losses = []
+        
+        for i in range(batch_size):
+            # Compute loss for every slice (even if area=0, weight=0)
+            single_pred = prediction[i:i+1]
+            single_target = target[i:i+1]
+            single_range = data_range[i:i+1]
+            
+            item_loss = self.anatomical_ssim_l1(single_pred, single_target, single_range)
+            weighted_loss = item_loss * weights[i]
+            weighted_losses.append(weighted_loss)
+        
+        # Return mean of area-weighted losses (pure accuracy)
+        return torch.mean(torch.stack(weighted_losses))
+
 class IndexBasedAnatomicalSSIMLoss(IndexBasedWeightedLoss):
     """
     Index-based weighted Anatomical SSIM loss.
     
     Combines anatomical masking with slice index-based weighting:
     Loss = SSIM_loss * cos^2(current_slice_index / max_slice_index * pi/2)
+    
+    NOTE: This is the old approach - consider using AreaBasedAnatomicalSSIMLoss instead
+    for more precise, data-driven weighting.
     """
 
     def __init__(self, win_size: int = 7, k1: float = 0.01, k2: float = 0.03, 
