@@ -33,7 +33,8 @@ class MaskFunc:
 
         self.center_fractions = center_fractions
         self.accelerations = accelerations
-        self.rng = np.random.RandomState()  # pylint: disable=no-member
+        # Use a seeded random state for reproducible mask generation
+        self.rng = np.random.RandomState(2025)  # Fixed seed for reproducible masks
 
     def __call__(
         self, shape: Sequence[int], seed: Optional[Union[int, Tuple[int, ...]]] = None

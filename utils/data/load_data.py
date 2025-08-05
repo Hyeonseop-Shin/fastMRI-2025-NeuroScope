@@ -169,7 +169,11 @@ class SliceData(Dataset):
 def split_k_folds(file_list: List[str], num_folds: int = 5) -> List[List[str]]:
     """Split file list into k folds for cross-validation"""
     file_list_copy = file_list.copy()  # Don't modify the original list
-    np.random.shuffle(file_list_copy)
+
+    # Use a seeded random state for reproducible shuffling
+    rng = np.random.RandomState(2025)  # Fixed seed for reproducible k-fold splits
+    rng.shuffle(file_list_copy)
+
     fold_size = len(file_list_copy) // num_folds
     folds = [file_list_copy[i * fold_size:(i + 1) * fold_size] for i in range(num_folds)]
     

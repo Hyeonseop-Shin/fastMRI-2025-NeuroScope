@@ -47,13 +47,49 @@ def ssim_loss(gt, pred, maxval=None):
     return 1 - ssim
 
 def seed_fix(n):
+    """
+    Fix random seed for reproducibility across all random number generators
+    """
+    import os
+    
+    # Set seeds for all random number generators
     torch.manual_seed(n)
     torch.cuda.manual_seed(n)
     torch.cuda.manual_seed_all(n)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
     np.random.seed(n)
     random.seed(n)
+    
+    # Ensure deterministic behavior in PyTorch
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    
+    # Set environment variable for deterministic CUDA operations
+    os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+    
+    # Enable deterministic algorithms with warn_only to avoid breaking existing operations
+    try:
+        torch.use_deterministic_algorithms(True, warn_only=True)
+    except Exception as e:
+        print(f"Warning: Could not enable deterministic algorithms: {e}")
+        # Fallback to more conservative settings
+        try:
+            torch.use_deterministic_algorithms(False)
+            # Just ensure the basic deterministic settings
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
+        except:
+            pass
+    
+    print(f"Random seed fixed to {n} for reproducibility")
+
+def worker_init_fn(worker_id):
+    """
+    Worker initialization function for DataLoader to ensure reproducibility
+    when using multiple workers
+    """
+    np.random.seed(torch.initial_seed() % 2**32)
+    random.seed(torch.initial_seed() % 2**32)
+
 
 def center_crop(data, height, width):
     """
