@@ -9,7 +9,7 @@ from torch import Tensor
 from torch import optim
 
 from utils.data.load_data import create_data_loaders
-from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss, AnatomicalSSIMLoss, AnatomicalSSIM_L1_Loss, IndexBasedAnatomicalSSIMLoss, IndexBasedAnatomicalSSIM_L1_Loss
+from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss, AnatomicalSSIMLoss, AnatomicalSSIM_L1_Loss, IndexBasedAnatomicalSSIMLoss, IndexBasedAnatomicalSSIM_L1_Loss, AreaBasedAnatomicalSSIMLoss, AreaBasedAnatomicalSSIM_L1_Loss
 from utils.model.VarNet import VarNet
 from utils.model.FIVarNet import FIVarNet
 
@@ -90,6 +90,14 @@ class FastMRI:
             if anatomy_type is None:
                 raise ValueError("anatomy_type must be specified for IndexBasedAnatomicalSSIM_L1 loss")
             criterion = IndexBasedAnatomicalSSIM_L1_Loss(anatomy_type=anatomy_type)
+        elif self.args.criterion == 'AreaBasedAnatomicalSSIM':
+            if anatomy_type is None:
+                raise ValueError("anatomy_type must be specified for AreaBasedAnatomicalSSIM loss")
+            criterion = AreaBasedAnatomicalSSIMLoss(anatomy_type=anatomy_type)
+        elif self.args.criterion == 'AreaBasedAnatomicalSSIM_L1':
+            if anatomy_type is None:
+                raise ValueError("anatomy_type must be specified for AreaBasedAnatomicalSSIM_L1 loss")
+            criterion = AreaBasedAnatomicalSSIM_L1_Loss(anatomy_type=anatomy_type)
         else:
             raise NotImplementedError(f"Invalid loss type: {self.args.criterion}")
         return criterion

@@ -28,15 +28,15 @@ class DataTransform:
             'shift_range': (3, 8),
             # New brightness/contrast parameters
             'brightness_prop': 1.0,
-            'brightness_range': (0.5, 2.0),
-            'contrast_prop': 1.0,
-            'contrast_range': (0.5, 2.0),
+            'brightness_range': (0.8, 1.2),
+            'contrast_prop': 0.5,
+            'contrast_range': (0.8, 1.2),
             'anatomy_type': anatomy_type,
             # New k-space augmentation parameter
-            'enable_kspace_intensity_aug': False
+            'enable_kspace_intensity_aug': True
         }
     
-    def set_brightness_contrast_augmentation(self, brightness_prop=0.1, contrast_prop=0.1, 
+    def set_brightness_contrast_augmentation(self, brightness_prop=1.0, contrast_prop=0.5, 
                                            brightness_range=(0.8, 1.2), contrast_range=(0.8, 1.2)):
         """
         Configure brightness and contrast augmentation parameters.

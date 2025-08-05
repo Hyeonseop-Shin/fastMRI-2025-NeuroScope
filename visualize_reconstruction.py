@@ -16,6 +16,7 @@ import sys
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 import h5py
 import cv2
 from pathlib import Path
@@ -44,6 +45,28 @@ class AnatomicalSSIM:
         ssim_calculator = SSIMLoss(win_size=self.win_size, k1=self.k1, k2=self.k2).to(device)
         
         # Create anatomical mask
+        # 리눅스, 기타등등 하나도 몰랐는데
+        # 군대에서 "리눅스마스터" => 지인짜 투머치 => 생각보다 교양으로 맹 나이스 + 컴조, 컴퓨터구조
+        # 회사 서버 시스템 엔지니어 => sciprt, 리눅스 권한
+        # adduser
+        # .ssh/authorized_keys
+        # sshd_config PermitAuthentication yes
+        # crontab cron
+        # filesystem 구조
+        # DevOps => 백엔드 전반
+        # Machine Learning Operations => ML 서비스 작동 및 배포 안전하게
+        # MLOps 개찐빠
+        # 아무것도 모를때, 안추천 => ML basic, 백엔드 기초지식 개쓰레기
+        # 프로젝트 => 거대한거 하나
+        # 맨처음 주제는 강의나 정형화된 토이 프로젝트 진짜 많다
+        # 머리 자를때, 헤어스타일 공장ㄷㄷㄷㄷ
+        # 기초 수학이랑 확률
+        # 선대(rank, 학교 강의), ML이론(CS231), 찬양하라 박경서 강화학습 특강(어려워........ fundamental, greedy, policy gradient)
+        # stochastic process, bayes theory, bayes inference
+        # Computer vision and pattern recognition => 게획 없음, 방대하기 때문에
+        # 과제를 해 => SGD 만들기, backprogation 구현
+        # 개빡개빡ㄷㄷㄷㄷㄷㄷㄷㄷㄷ
+        # 45 50'', 30개
         mask = np.zeros(target.shape)
         if anatomy_type == 'knee':
             mask[target > 2e-5] = 1
@@ -277,7 +300,7 @@ class Visualizer:
         # Normalize images
         recon_norm = Visualizer.normalize_image(reconstruction)
         target_norm = Visualizer.normalize_image(target)
-        diff = np.abs(recon_norm - target_norm)
+        diff = target_norm - recon_norm  # Ground Truth - Reconstruction
         
         # Calculate Anatomical SSIM and get mask
         ssim_calculator = AnatomicalSSIM()
@@ -339,9 +362,22 @@ class Visualizer:
         
         plt.colorbar(im2, ax=axes[1], fraction=0.046, pad=0.04)
         
-        # Difference
-        im3 = axes[2].imshow(diff, cmap='hot', vmin=0, vmax=0.5)
-        axes[2].set_title('Absolute Difference')
+        # Create custom colormap with high contrast for better visibility
+        # Bright yellow for negative, black for zero, bright red for positive
+        colors = ['#FFFF00', '#000000', '#FF0000']  # Bright yellow, black, bright red
+        positions = [0.0, 0.5, 1.0]
+        n_bins = 256
+        
+        # Create segmented colormap with sharp transitions
+        cmap = mcolors.LinearSegmentedColormap.from_list(
+            'custom', 
+            list(zip(positions, colors)), 
+            N=n_bins
+        )
+        
+        # Difference with tighter range for better contrast
+        im3 = axes[2].imshow(diff, cmap=cmap, vmin=-0.2, vmax=0.2)
+        axes[2].set_title('Difference (GT - Recon)')
         axes[2].axis('off')
         plt.colorbar(im3, ax=axes[2], fraction=0.046, pad=0.04)
         
@@ -368,6 +404,8 @@ def parse_args():
                        help='Device to use (cuda, cpu, or auto)')
     
     return parser.parse_args()
+
+    
 def main():
     """Main function"""
     args = parse_args()
