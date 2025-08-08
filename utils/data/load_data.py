@@ -6,7 +6,7 @@ from tqdm import tqdm
 from typing import List, Tuple, Optional, Union, Iterator
 import logging
 
-from utils.data.subsample import EquispacedMaskFunc
+from utils.data.subsample import EquispacedMaskFunc, RandomMaskFunc
 from utils.data.transforms import DataTransform
 from torch.utils.data import Dataset, DataLoader
 
@@ -52,7 +52,8 @@ class SliceData(Dataset):
                  forward: bool = False,
                  acc: int = 4,
                  slice_moe_num: int = 0,
-                 slice_moe_total: int = 1):
+                 slice_moe_total: int = 1,
+                 random_mask_prop: float = 0.2):
         self.kspace_root = Path(kspace_root)
         self.image_root = Path(image_root) if image_root and not forward else None
         self.transform = transform
@@ -63,10 +64,11 @@ class SliceData(Dataset):
         self.slice_moe_num = slice_moe_num
         self.slice_moe_total = slice_moe_total
 
-        # center_fractions = [0.08] if acc == 4 else [0.04]
+        self.random_mask_prop = random_mask_prop
         center_fractions = [0.08]
-        self.mask_generator = EquispacedMaskFunc(center_fractions=center_fractions, accelerations=[acc])
-        
+        self.eq_mask_generator = EquispacedMaskFunc(center_fractions=center_fractions, accelerations=[acc])
+        self.random_mask_generator = RandomMaskFunc(center_fractions=center_fractions, accelerations=[acc])
+
         self.examples: List[Tuple[str, int]] = []
         self._build_examples(file_list)
     
@@ -130,7 +132,10 @@ class SliceData(Dataset):
         # Load kspace data
         try:
             input_data, mask = self._load_kspace_data(input_path=input_path, slice_ind=slice_ind)
-            mask = self.mask_generator(shape=input_data.shape)
+            if np.random.random() < self.random_mask_prop:
+                mask = self.random_mask_prop(shape=input_data.shape)
+            else:
+                mask = self.eq_mask_generator(shape=input_data.shape)
         except Exception as e:
             logger.error(f"Error loading kspace data from {input_path}, slice {slice_ind}: {e}")
             raise
@@ -170,9 +175,7 @@ def split_k_folds(file_list: List[str], num_folds: int = 5) -> List[List[str]]:
     """Split file list into k folds for cross-validation"""
     file_list_copy = file_list.copy()  # Don't modify the original list
 
-    # Use a seeded random state for reproducible shuffling
-    rng = np.random.RandomState(2025)  # Fixed seed for reproducible k-fold splits
-    rng.shuffle(file_list_copy)
+    np.random.shuffle(file_list_copy)
 
     fold_size = len(file_list_copy) // num_folds
     folds = [file_list_copy[i * fold_size:(i + 1) * fold_size] for i in range(num_folds)]

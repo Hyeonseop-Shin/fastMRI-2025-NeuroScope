@@ -43,7 +43,7 @@ class MaskFunc:
 
     def choose_acceleration(self):
         """Choose acceleration based on class parameters."""
-        choice = self.rng.randint(0, len(self.accelerations))
+        choice = np.random.randint(0, len(self.accelerations))
         center_fraction = self.center_fractions[choice]
         acceleration = self.accelerations[choice]
 
@@ -68,7 +68,7 @@ class RandomMaskFunc(MaskFunc):
             num_ones = (num_cols - num_low_freqs) // acceleration
 
             mask_side = np.zeros(num_cols - num_low_freqs)
-            indices = self.rng.choice(num_cols - num_low_freqs, num_ones, replace=False)
+            indices = np.random.choice(num_cols - num_low_freqs, num_ones, replace=False)
             mask_side[indices] = True
             
             mask = np.zeros(num_cols)
@@ -100,7 +100,7 @@ class EquispacedMaskFunc(MaskFunc):
             mask[pad : pad + num_low_freqs] = True
 
             mask_side = np.zeros(num_cols)
-            offset  = self.rng.randint(acceleration)
+            offset  = np.random.randint(acceleration)
             mask_side[offset::acceleration] = True
 
             mask[:pad] = mask_side[:pad]

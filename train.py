@@ -34,6 +34,7 @@ def parse():
     parser.add_argument('-e', '--num-epochs', type=int, default=2, help='Number of epochs')
     parser.add_argument('-n', '--net-name', type=str, default='fivarnet_f8_i2_attn0_c32_s8__epoch2_fold5_slice3', help='Name of network')
     parser.add_argument('--optimizer', type=str, default='AdamW', choices=['Adam', 'AdamW'], help='Optimizer')
+    parser.add_argument('--betas', type=float, nargs=2, default=[0.9, 0.999], help='Beta value for AdamW optimizer')
     parser.add_argument('--criterion', type=str, default='AnatomicalSSIM', 
                         choices=['SSIM', 'SSIM_L1', 'AnatomicalSSIM', 'AnatomicalSSIM_L1', 
                                 'IndexBasedAnatomicalSSIM', 'IndexBasedAnatomicalSSIM_L1',
@@ -60,6 +61,7 @@ def parse():
     parser.add_argument('-d', '--data-augmentation', type=str2bool, default=False, help='Apply spatial augmentation')
     parser.add_argument('-t', '--data-path-train', type=Path, default='D://Data/train/', help='Directory of train data')
     parser.add_argument('-v', '--data-path-val', type=Path, default='D://Data/val/', help='Directory of validation data')
+    parser.add_argument('--random-mask-prop', type=float, default=0.2, help='Probability for random mask application')
     parser.add_argument('--input-key', type=str, default='kspace', help='Name of input key')
     parser.add_argument('--target-key', type=str, default='image_label', help='Name of target key')
     parser.add_argument('--max-key', type=str, default='max', help='Name of max key in attributes')

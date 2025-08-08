@@ -63,6 +63,7 @@ class FastMRI:
         elif self.args.optimizer == 'AdamW':
             optimizer = optim.AdamW(self.model.parameters(),
                                     lr=self.args.lr,
+                                    betas=self.args.betas,
                                     weight_decay=1e-6)
         else:
             raise NotImplementedError(f"Invalid optimizer type: {self.args.optimizer}")
