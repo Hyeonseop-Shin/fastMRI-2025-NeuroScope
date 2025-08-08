@@ -37,6 +37,7 @@ class DatasetConfig:
         self.anatomy = args.anatomy
         self.slice_moe_total = args.slice_moe if args.use_moe else None
         self.slice_moe_num = slice_moe_num
+        self.random_mask_prop = args.random_mask_prop
 
 
 class SliceData(Dataset):
@@ -216,6 +217,7 @@ def _create_dataset(kspace_root: Path,
         acc=config.acc,
         slice_moe_num=config.slice_moe_num,
         slice_moe_total=config.slice_moe_total,
+        random_mask_prop=config.random_mask_prop
     )
 
 
