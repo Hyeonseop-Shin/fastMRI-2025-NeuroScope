@@ -164,10 +164,12 @@ class FastMRI:
         scenario_list = os.listdir(arch_path)
         retrain_number = len(scenario_list)
 
-        if retrain_number == 1:
-            scenario_part = scenario_part.replace("_retrain", "")
-        else:
-            scenario_part = scenario_part.replace("_retrain", f"_retrain{retrain_number - 2}")        
+        # if retrain_number == 1:
+        #     scenario_part = scenario_part.replace("_retrain", "")
+        # else:
+        #     scenario_part = scenario_part.replace("_retrain", f"_retrain{retrain_number - 2}")
+        loc = scenario_part.rfind('_')       
+        scenario_part = scenario_part[:loc]
 
         ckpt_file = os.path.join(architecture_part, scenario_part, class_label, "checkpoints/last_model.pt")
         ckpt_path = self.args.result_path / ckpt_file
@@ -349,10 +351,10 @@ class FastMRI:
         scenario_list = os.listdir(arch_path)
         retrain_number = len(scenario_list) - 1
 
-        # if retrain_number == 1:
-        #     old_scenario_part = scenario_part.replace("_retrain", "")
-        # else:
-            # old_scenario_part = scenario_part
+        if retrain_number == 1:
+            old_scenario_part = scenario_part.replace("_retrain", "")
+        else:
+            old_scenario_part = scenario_part
 
         old_path = os.path.join(arch_path, scenario_part)
         new_path = os.path.join(arch_path, f"{scenario_part}{retrain_number}")

@@ -6,11 +6,14 @@ train_path = os.path.join(root_path, "train.py")
 cmd_file_path = os.path.join(root_path, "train.sh")
 
 # frequently change
-special_name = "base2"
+special_name = "base"
 epoch = 5 # 실제로 돌아가는 에폭 수
-retrain = False
-retrain_epoch = 2
-acc_only_list = [4, 8]  # 0 for all acc
+retrain = True
+retrain_epoch = 5
+acc_only_list = [
+    4, 
+    # 8
+    ]  # 0 for all acc
 anatomy_only_list = [
     # 'brain', 
     'knee',
@@ -20,6 +23,8 @@ lr = 3e-4
 scheduler = "cosine"
 criterion = "AnatomicalSSIM"
 report_interval = 1
+random_mask_prop = 0.2
+betas = "0.2 0.999"
 
 
 # Training hyperparameters
@@ -83,6 +88,8 @@ instruction_template = [[(
     f"--criterion {criterion} "
     f"--retrain {retrain} "
     f"--retrain-epoch {retrain_epoch} "
+    f"--random-mask-prop {random_mask_prop} "
+    f"--betas {betas} "
     f"--model {model} "
     f"-f {feature_cascades} "
     f"-i {image_cascades} "

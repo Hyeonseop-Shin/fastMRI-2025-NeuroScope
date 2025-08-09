@@ -134,7 +134,7 @@ class SliceData(Dataset):
         try:
             input_data, mask = self._load_kspace_data(input_path=input_path, slice_ind=slice_ind)
             if np.random.random() < self.random_mask_prop:
-                mask = self.random_mask_prop(shape=input_data.shape)
+                mask = self.random_mask_generator(shape=input_data.shape)
             else:
                 mask = self.eq_mask_generator(shape=input_data.shape)
         except Exception as e:
