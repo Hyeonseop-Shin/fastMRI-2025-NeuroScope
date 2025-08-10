@@ -1,30 +1,31 @@
 import os
 
-root_path = "/root/fastMRI/fastMRI-2025-NeuroScope"
-python_path = "/venv/mri/bin/python"
+root_path = "/root/FastMRI_challenge"
+python_path = "/root/anaconda3/envs/mri/bin/python"
 train_path = os.path.join(root_path, "train.py")
 cmd_file_path = os.path.join(root_path, "train.sh")
 
 # frequently change
 special_name = "base"
 epoch = 5 # 실제로 돌아가는 에폭 수
-retrain = True
+retrain = False
 retrain_epoch = 5
 acc_only_list = [
     4, 
     # 8
     ]  # 0 for all acc
 anatomy_only_list = [
-    # 'brain', 
-    'knee',
+    'brain', 
+    # 'knee',
     ]
 slice_moe = 1
 lr = 3e-4
 scheduler = "cosine"
 criterion = "AnatomicalSSIM"
 report_interval = 1
-random_mask_prop = 0.2
-betas = "0.2 0.999"
+use_random_mask = False
+random_mask_prop = 0.0
+betas = "0.9 0.999"
 
 
 # Training hyperparameters
@@ -51,7 +52,7 @@ k_fold = True
 num_folds = 5
 
 # Data hyperparameters
-data_root = "/root/fastMRI/datasets"
+data_root = "/root/Data"
 data_path_train = os.path.join(data_root, "train")
 data_path_val = os.path.join(data_root, "val")
 data_augmentation = False
@@ -88,6 +89,7 @@ instruction_template = [[(
     f"--criterion {criterion} "
     f"--retrain {retrain} "
     f"--retrain-epoch {retrain_epoch} "
+    f"--use-random-mask {use_random_mask} "
     f"--random-mask-prop {random_mask_prop} "
     f"--betas {betas} "
     f"--model {model} "
@@ -136,7 +138,9 @@ for acc_inst_list, acc_log_list in zip(instruction_template, log_path):
     acc_inststruction = "nohup bash -c \" \n"
     acc_inststruction += f"mkdir -p {result_dir}; \\ \n"
     for idx, (anatomy_inst, anatomy_log) in enumerate(zip(acc_inst_list, acc_log_list)):
-        acc_inststruction += f"{anatomy_inst.replace('\\', '/')} > {anatomy_log.replace('\\', '/')} 2>&1"
+        anatomy_inst = anatomy_inst.replace('\\', '/')
+        anatomy_log = anatomy_log.replace('\\', '/')
+        acc_inststruction += f"{anatomy_inst} > {anatomy_log} 2>&1"
         if idx + 1 != len(acc_inst_list):
             acc_inststruction += '; \\\n'
         else:

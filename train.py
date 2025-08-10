@@ -61,6 +61,7 @@ def parse():
     parser.add_argument('-d', '--data-augmentation', type=str2bool, default=False, help='Apply spatial augmentation')
     parser.add_argument('-t', '--data-path-train', type=Path, default='D://Data/train/', help='Directory of train data')
     parser.add_argument('-v', '--data-path-val', type=Path, default='D://Data/val/', help='Directory of validation data')
+    parser.add_argument('--use-random-mask', type=str2bool, default=False, help='Apply random mask')
     parser.add_argument('--random-mask-prop', type=float, default=0.2, help='Probability for random mask application')
     parser.add_argument('--input-key', type=str, default='kspace', help='Name of input key')
     parser.add_argument('--target-key', type=str, default='image_label', help='Name of target key')

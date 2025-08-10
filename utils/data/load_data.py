@@ -38,6 +38,7 @@ class DatasetConfig:
         self.slice_moe_total = args.slice_moe if args.use_moe else None
         self.slice_moe_num = slice_moe_num
         self.random_mask_prop = args.random_mask_prop
+        self.use_random_mask = args.use_random_mask
 
 
 class SliceData(Dataset):
@@ -54,6 +55,7 @@ class SliceData(Dataset):
                  acc: int = 4,
                  slice_moe_num: int = 0,
                  slice_moe_total: int = 1,
+                 use_random_mask: bool = False,
                  random_mask_prop: float = 0.2):
         self.kspace_root = Path(kspace_root)
         self.image_root = Path(image_root) if image_root and not forward else None
@@ -65,10 +67,12 @@ class SliceData(Dataset):
         self.slice_moe_num = slice_moe_num
         self.slice_moe_total = slice_moe_total
 
+        self.use_random_mask = use_random_mask
         self.random_mask_prop = random_mask_prop
         center_fractions = [0.08]
         self.eq_mask_generator = EquispacedMaskFunc(center_fractions=center_fractions, accelerations=[acc])
-        self.random_mask_generator = RandomMaskFunc(center_fractions=center_fractions, accelerations=[acc])
+        if use_random_mask:
+            self.random_mask_generator = RandomMaskFunc(center_fractions=center_fractions, accelerations=[acc])
 
         self.examples: List[Tuple[str, int]] = []
         self._build_examples(file_list)
@@ -133,7 +137,7 @@ class SliceData(Dataset):
         # Load kspace data
         try:
             input_data, mask = self._load_kspace_data(input_path=input_path, slice_ind=slice_ind)
-            if np.random.random() < self.random_mask_prop:
+            if self.use_random_mask and np.random.random() < self.random_mask_prop:
                 mask = self.random_mask_generator(shape=input_data.shape)
             else:
                 mask = self.eq_mask_generator(shape=input_data.shape)
@@ -217,7 +221,8 @@ def _create_dataset(kspace_root: Path,
         acc=config.acc,
         slice_moe_num=config.slice_moe_num,
         slice_moe_total=config.slice_moe_total,
-        random_mask_prop=config.random_mask_prop
+        random_mask_prop=config.random_mask_prop,
+        use_random_mask=config.use_random_mask
     )
 
 
