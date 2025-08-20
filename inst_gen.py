@@ -19,13 +19,13 @@ anatomy_only_list = [
     # 'knee',
     ]
 slice_moe = 1
-lr = 3e-4
-scheduler = "cosine"
-criterion = "AnatomicalSSIM"
-report_interval = 1
-use_random_mask = False
-random_mask_prop = 0.0
-betas = "0.9 0.999"
+lr = 1e-5
+scheduler = "constant"
+criterion = "SobelLoss"
+report_interval = 100
+use_random_mask = True
+random_mask_prop = 0.5
+betas = "0.2 0.999"
 
 
 # Training hyperparameters

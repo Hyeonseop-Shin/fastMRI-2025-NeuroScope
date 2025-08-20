@@ -9,7 +9,7 @@ from torch import Tensor
 from torch import optim
 
 from utils.data.load_data import create_data_loaders
-from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss, AnatomicalSSIMLoss, AnatomicalSSIM_L1_Loss, IndexBasedAnatomicalSSIMLoss, IndexBasedAnatomicalSSIM_L1_Loss, AreaBasedAnatomicalSSIMLoss, AreaBasedAnatomicalSSIM_L1_Loss
+from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss, AnatomicalSSIMLoss, AnatomicalSSIM_L1_Loss, IndexBasedAnatomicalSSIMLoss, IndexBasedAnatomicalSSIM_L1_Loss, AreaBasedAnatomicalSSIMLoss, AreaBasedAnatomicalSSIM_L1_Loss, SobelLoss
 from utils.model.VarNet import VarNet
 from utils.model.FIVarNet import FIVarNet
 
@@ -38,8 +38,6 @@ class FastMRI:
     def _build_model(self, args):
 
         model_name = args.model.lower()
-        assert model_name in ['varnet', 'fivarnet'], f"Unknown model name: {args.model}"
-
         if model_name == 'varnet':
             model = VarNet(num_cascades=args.feature_cascades, 
                            chans=args.chans, 
@@ -99,6 +97,10 @@ class FastMRI:
             if anatomy_type is None:
                 raise ValueError("anatomy_type must be specified for AreaBasedAnatomicalSSIM_L1 loss")
             criterion = AreaBasedAnatomicalSSIM_L1_Loss(anatomy_type=anatomy_type)
+        elif self.args.criterion == 'SobelLoss':
+            if anatomy_type is None:
+                raise ValueError("anatomy_type must be specified for SobelLoss")
+            criterion = SobelLoss(anatomy_type=anatomy_type)
         else:
             raise NotImplementedError(f"Invalid loss type: {self.args.criterion}")
         return criterion
@@ -295,8 +297,7 @@ class FastMRI:
                     is_new_best = val_loss < best_val_loss
                     best_val_loss = min(best_val_loss, val_loss)
 
-                    if val_fold == fold_num - 1:
-                        self.save_model(model_name=slice_moe_model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=self.optimizer, fold=val_fold, is_best=is_new_best)
+                    self.save_model(model_name=slice_moe_model_name, exp_dir=exp_dir, epoch=epoch, val_loss=val_loss, optimizer=self.optimizer, fold=val_fold, is_best=is_new_best)
                     print(
                         f'Epoch = [{epoch:3d}/{last_epoch:3d}]   '
                         f'TrainLoss = {train_loss:.4g}   '
@@ -350,11 +351,6 @@ class FastMRI:
         arch_path = self.args.result_path / architecture_part
         scenario_list = os.listdir(arch_path)
         retrain_number = len(scenario_list) - 1
-
-        if retrain_number == 1:
-            old_scenario_part = scenario_part.replace("_retrain", "")
-        else:
-            old_scenario_part = scenario_part
 
         old_path = os.path.join(arch_path, scenario_part)
         new_path = os.path.join(arch_path, f"{scenario_part}{retrain_number}")

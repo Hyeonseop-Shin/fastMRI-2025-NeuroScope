@@ -182,7 +182,7 @@ class AnatomicalSSIM_L1_Loss(nn.Module):
     Anatomical SSIM + L1 loss module that matches evaluation strategy
     """
 
-    def __init__(self, alpha=0.8, win_size: int = 7, k1: float = 0.01, k2: float = 0.03,
+    def __init__(self, alpha=0.9, win_size: int = 7, k1: float = 0.01, k2: float = 0.03,
                  anatomy_type='brain', threshold_brain=5e-5, threshold_knee=2e-5):
         """
         Args:
@@ -566,3 +566,72 @@ class IndexBasedAnatomicalSSIM_L1_Loss(IndexBasedWeightedLoss):
         
         # Return mean of weighted losses
         return torch.mean(torch.stack(weighted_losses))
+    
+
+
+
+
+# ---------------------- Sobel edges (for optional edge loss) ----------------------
+def sobel_edges(x):
+    # x: (N,1,H,W)
+    kx = torch.tensor([[-1,0,1],[-2,0,2],[-1,0,1]], dtype=x.dtype, device=x.device).view(1,1,3,3)
+    ky = torch.tensor([[-1,-2,-1],[0,0,0],[1,2,1]], dtype=x.dtype, device=x.device).view(1,1,3,3)
+    ex = F.conv2d(x, kx, padding=1)
+    ey = F.conv2d(x, ky, padding=1)
+    return torch.sqrt(ex * ex + ey * ey + 1e-12)
+
+
+# ---------------------- Composite loss ----------------------
+class SobelLoss(nn.Module):
+    """
+    L = λ1 * L1 + λ2 * (1 - SSIM) + λ3 * Fourier_HF + λ4 * Edge(Sobel)
+    Accepts (N,1,H,W) magnitudes OR (N,2,H,W) complex-as-channels (will convert to magnitude).
+    """
+    def __init__(self,
+                 weight_l1=0.1,
+                 weight_ssim=0.7,
+                 weight_fourier=0.0,
+                 weight_edge=0.2,
+                 ssim_win=7,
+                 hp_ratio=0.15,
+                 gamma=2.0,
+                 anatomy_type='brain'):
+        super().__init__()
+        self.ssim = AnatomicalSSIMLoss(win_size=ssim_win, anatomy_type=anatomy_type)
+        self.weight_l1 = weight_l1
+        self.weight_ssim = weight_ssim
+        self.weight_fourier = weight_fourier
+        self.weight_edge = weight_edge
+        self.hp_ratio = hp_ratio
+        self.gamma = gamma
+
+    @staticmethod
+    def _to_mag(t):
+        # t: (N,1,H,W) or (N,2,H,W)
+        if t.dim() != 4:
+            raise ValueError("Expected NCHW")
+        if t.size(1) == 1:
+            return t
+        elif t.size(1) == 2:
+            mag = torch.sqrt(t[:,0:1]**2 + t[:,1:2]**2 + 1e-12)
+            return mag
+        else:
+            raise ValueError("Channel must be 1 (mag) or 2 (complex).")
+
+    def forward(self, pred, target, data_range=None):
+        """
+        pred, target: (N,1,H,W) magnitude OR (N,2,H,W) complex-as-channels
+        data_range: scalar or (N,1,1,1); if None, computed from target
+        """
+
+        x = pred
+        y = target
+
+        # Main terms
+        l1 = F.l1_loss(x, y)
+        ssim_loss = self.ssim(x, y, data_range=data_range)
+
+        # Optional edge term
+        edge = F.l1_loss(sobel_edges(x), sobel_edges(y))
+
+        return self.weight_l1 * l1 + self.weight_ssim * ssim_loss + self.weight_edge * edge

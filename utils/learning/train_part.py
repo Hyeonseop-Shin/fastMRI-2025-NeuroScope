@@ -13,13 +13,7 @@ from torch import Tensor
 from torch import optim
 import torch.nn as nn
 
-from utils.data.load_data import create_data_loaders
 from utils.common.utils import ssim_loss
-from utils.common.loss_function import SSIM_L1_Loss, SSIMLoss, AnatomicalSSIMLoss, AnatomicalSSIM_L1_Loss, IndexBasedAnatomicalSSIMLoss, IndexBasedAnatomicalSSIM_L1_Loss
-from utils.model.VarNet import VarNet
-from utils.model.FIVarNet import FIVarNet
-from utils.learning.Scheduler import ConstantScheduler, CosineScheduler, WarmupCosineScheduler, DoubleWarmupCosineScheduler
-from utils.learning.mask_classifier import classify_and_index, MRIClassifier
 
 
 def validate(model, val_loader):
